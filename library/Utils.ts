@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-/// <reference path="./Fluxions.ts" />
+/// <reference path="./RenderingContext.ts" />
 /// <reference path="./RenderConfig.ts" />
 
 namespace Utils {

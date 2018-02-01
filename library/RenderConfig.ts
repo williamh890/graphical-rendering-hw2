@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-/// <reference path="./Fluxions.ts"/>
+/// <reference path="./RenderingContext.ts"/>
 
 class RenderConfig {
     private _isCompiled: boolean = false;
@@ -39,7 +39,7 @@ class RenderConfig {
     public uniforms: Map<string, WebGLUniformLocation | null> = new Map<string, WebGLUniformLocation | null>();
     public uniformInfo: Map<string, WebGLActiveInfo | null> = new Map<string, WebGLActiveInfo | null>();
 
-    constructor(private _context: Fluxions, private _vertShaderSource: string, private _fragShaderSource: string) {
+    constructor(private _context: RenderingContext, private _vertShaderSource: string, private _fragShaderSource: string) {
         this.Reset(this._vertShaderSource, this._fragShaderSource);
     }
 

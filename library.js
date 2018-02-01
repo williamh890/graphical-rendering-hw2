@@ -861,7 +861,7 @@ class Matrix4 {
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-/// <reference path="./Fluxions.ts"/>
+/// <reference path="./RenderingContext.ts"/>
 class RenderConfig {
     constructor(_context, _vertShaderSource, _fragShaderSource) {
         this._context = _context;
@@ -1025,19 +1025,13 @@ class RenderConfig {
 /// <reference path="GTE.ts" />
 /// <reference path="Utils.ts" />
 /// <reference path="RenderConfig.ts" />
-/// <reference path="Scenegraph.ts" />
-/// <reference path="IndexedGeometryMesh.ts" />
-/// <reference path="Texture.ts" />
-/// <reference path="MaterialLibrary.ts" />
-class Fluxions {
+/// // <reference path="Scenegraph.ts" />
+/// // <reference path="IndexedGeometryMesh.ts" />
+/// // <reference path="Texture.ts" />
+/// // <reference path="MaterialLibrary.ts" />
+class RenderingContext {
     constructor(gl) {
         this.gl = gl;
-    }
-    CreateRenderConfig(vertShaderText, fragShaderText) {
-        return new RenderConfig(this, vertShaderText, fragShaderText);
-    }
-    CreateIndexGeometryMesh() {
-        return new IndexedGeometryMesh(this);
     }
 }
 // Fluxions WebGL Library
@@ -1064,7 +1058,7 @@ class Fluxions {
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 //
-/// <reference path="./Fluxions.ts" />
+/// <reference path="./RenderingContext.ts" />
 /// <reference path="./RenderConfig.ts" />
 var Utils;
 (function (Utils) {
@@ -1583,36 +1577,7 @@ var Colors;
     Colors.ArneSkin = [244, 185, 144, 255];
     Colors.ArneBlack = [30, 30, 30, 255];
 })(Colors || (Colors = {}));
-class StaticVertexBufferObject {
-    constructor(gl, drawArraysMode, vertexData) {
-        this.drawArraysMode = drawArraysMode;
-        this.buffer = null;
-        this.gl = null;
-        this.bufferLength = 0;
-        this.count = 0;
-        this.buffer = gl.createBuffer();
-        if (!this.buffer)
-            return;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STATIC_DRAW);
-        this.bufferLength = vertexData.length * 4;
-        this.count = vertexData.length / 4;
-        this.gl = gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    }
-    Render(vertexLoc) {
-        if (!this.buffer || !this.gl || vertexLoc < 0)
-            return;
-        let gl = this.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.vertexAttribPointer(vertexLoc, 4, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(vertexLoc);
-        gl.drawArrays(this.drawArraysMode, 0, this.count);
-        gl.disableVertexAttribArray(vertexLoc);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    }
-}
-class ShaderProgram {
+class HW0ShaderProgram {
     constructor(gl, vertShaderSource, fragShaderSource) {
         this.gl = gl;
         this.vertShaderSource = vertShaderSource;
@@ -1664,7 +1629,36 @@ class ShaderProgram {
         return shader;
     }
 }
-class WebGLAppHW0 {
+class HW0StaticVertexBufferObject {
+    constructor(gl, drawArraysMode, vertexData) {
+        this.drawArraysMode = drawArraysMode;
+        this.buffer = null;
+        this.gl = null;
+        this.bufferLength = 0;
+        this.count = 0;
+        this.buffer = gl.createBuffer();
+        if (!this.buffer)
+            return;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STATIC_DRAW);
+        this.bufferLength = vertexData.length * 4;
+        this.count = vertexData.length / 4;
+        this.gl = gl;
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    }
+    Render(vertexLoc) {
+        if (!this.buffer || !this.gl || vertexLoc < 0)
+            return;
+        let gl = this.gl;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.vertexAttribPointer(vertexLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(vertexLoc);
+        gl.drawArrays(this.drawArraysMode, 0, this.count);
+        gl.disableVertexAttribArray(vertexLoc);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    }
+}
+class OldWebGLAppHW0 {
     constructor(width = 512, height = 384) {
         this.width = width;
         this.height = height;
@@ -1705,12 +1699,77 @@ class WebGLAppHW0 {
         });
     }
     init(gl) {
-        this.vbo = new StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
+        this.vbo = new HW0StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
             -1, -1, 0, 1,
             1, -1, 0, 1,
             0, 1, 0, 1
         ]));
-        this.program = new ShaderProgram(gl, "attribute vec4 position; void main(){ gl_Position = position; }", "void main() { gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0); }");
+        this.program = new HW0ShaderProgram(gl, "attribute vec4 position; void main(){ gl_Position = position; }", "void main() { gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0); }");
+    }
+    display(t) {
+        if (!this.gl || !this.canvasElement_)
+            return;
+        let gl = this.gl;
+        gl.clearColor(0.2, 0.15 * Math.sin(t) + 0.15, 0.4, 1.0);
+        gl.clear(this.gl.COLOR_BUFFER_BIT);
+        gl.viewport(0, 0, this.canvasElement_.width, this.canvasElement_.height);
+        if (this.vbo && this.program) {
+            this.program.Use();
+            this.vbo.Render(this.program.GetVertexPosition("position"));
+        }
+        gl.useProgram(null);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    }
+}
+class WebGLAppHW0 {
+    constructor(width = 512, height = 384) {
+        this.width = width;
+        this.height = height;
+        this.renderingContext = null;
+        this.divElement_ = null;
+        this.canvasElement_ = null;
+        this.gl = null;
+        this.vbo = null;
+        this.program = null;
+        this.divElement_ = document.createElement("div");
+        this.canvasElement_ = document.createElement("canvas");
+        if (this.canvasElement_) {
+            this.gl = this.canvasElement_.getContext("webgl");
+            if (!this.gl) {
+                this.gl = this.canvasElement_.getContext("experimental-webgl");
+            }
+            if (!this.gl) {
+                this.canvasElement_ = null;
+                this.divElement_.innerText = "WebGL not supported.";
+            }
+            else {
+                this.divElement_.appendChild(this.canvasElement_);
+                this.divElement_.align = "center";
+                this.renderingContext = new RenderingContext(this.gl);
+            }
+        }
+        document.body.appendChild(this.divElement_);
+    }
+    run() {
+        if (!this.gl)
+            return;
+        this.init(this.gl);
+        this.mainloop(0);
+    }
+    mainloop(timestamp) {
+        let self = this;
+        this.display(timestamp / 1000.0);
+        window.requestAnimationFrame((t) => {
+            self.mainloop(t);
+        });
+    }
+    init(gl) {
+        this.vbo = new HW0StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
+            -1, -1, 0, 1,
+            1, -1, 0, 1,
+            0, 1, 0, 1
+        ]));
+        this.program = new HW0ShaderProgram(gl, "attribute vec4 position; void main(){ gl_Position = position; }", "void main() { gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0); }");
     }
     display(t) {
         if (!this.gl || !this.canvasElement_)

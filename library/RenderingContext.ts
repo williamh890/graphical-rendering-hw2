@@ -25,22 +25,22 @@
 /// <reference path="GTE.ts" />
 /// <reference path="Utils.ts" />
 /// <reference path="RenderConfig.ts" />
-/// <reference path="Scenegraph.ts" />
-/// <reference path="IndexedGeometryMesh.ts" />
-/// <reference path="Texture.ts" />
-/// <reference path="MaterialLibrary.ts" />
+/// // <reference path="Scenegraph.ts" />
+/// // <reference path="IndexedGeometryMesh.ts" />
+/// // <reference path="Texture.ts" />
+/// // <reference path="MaterialLibrary.ts" />
 
 
-class Fluxions {
+class RenderingContext {
     constructor(public gl: WebGLRenderingContext) {
 
     }
 
-    CreateRenderConfig(vertShaderText: string, fragShaderText: string): RenderConfig {
-        return new RenderConfig(this, vertShaderText, fragShaderText);
-    }
+    // CreateRenderConfig(vertShaderText: string, fragShaderText: string): RenderConfig {
+    //     return new RenderConfig(this, vertShaderText, fragShaderText);
+    // }
 
-    CreateIndexGeometryMesh(): IndexedGeometryMesh {
-        return new IndexedGeometryMesh(this);
-    }
+    // CreateIndexGeometryMesh(): IndexedGeometryMesh {
+    //     return new IndexedGeometryMesh(this);
+    // }
 }

@@ -1,6 +1,4 @@
-
-class WebGLAppHW0 {
-    private renderingContext: RenderingContext | null = null;
+class OldWebGLAppHW0 {
     private divElement_: HTMLDivElement | null = null;
     private canvasElement_: HTMLCanvasElement | null = null;
     private gl: WebGLRenderingContext | null = null;
@@ -22,7 +20,6 @@ class WebGLAppHW0 {
             else {
                 this.divElement_.appendChild(this.canvasElement_);
                 this.divElement_.align = "center";
-                this.renderingContext = new RenderingContext(this.gl);
             }
         }
         document.body.appendChild(this.divElement_);
