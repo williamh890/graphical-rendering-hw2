@@ -1,11 +1,9 @@
-"use strict";
 class StaticVertexBufferObject {
-    constructor(gl, drawArraysMode, vertexData) {
-        this.drawArraysMode = drawArraysMode;
-        this.buffer = null;
-        this.gl = null;
-        this.bufferLength = 0;
-        this.count = 0;
+    public buffer: WebGLBuffer | null = null;
+    private gl: WebGLRenderingContext | null = null;
+    private bufferLength: number = 0;
+    private count: number = 0;
+    constructor(gl: WebGLRenderingContext, private drawArraysMode: number, vertexData: Float32Array) {
         this.buffer = gl.createBuffer();
         if (!this.buffer)
             return;
@@ -16,7 +14,8 @@ class StaticVertexBufferObject {
         this.gl = gl;
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
-    Render(vertexLoc) {
+
+    Render(vertexLoc: number): void {
         if (!this.buffer || !this.gl || vertexLoc < 0)
             return;
         let gl = this.gl;
@@ -28,12 +27,10 @@ class StaticVertexBufferObject {
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
 }
+
 class ShaderProgram {
-    constructor(gl, vertShaderSource, fragShaderSource) {
-        this.gl = gl;
-        this.vertShaderSource = vertShaderSource;
-        this.fragShaderSource = fragShaderSource;
-        this.program_ = null;
+    private program_: WebGLProgram | null = null;
+    constructor(private gl: WebGLRenderingContext, public vertShaderSource: string, public fragShaderSource: string) {
         let vshader = this.createShader(gl.VERTEX_SHADER, vertShaderSource);
         let fshader = this.createShader(gl.FRAGMENT_SHADER, fragShaderSource);
         if (!vshader || !fshader)
@@ -45,7 +42,7 @@ class ShaderProgram {
         gl.attachShader(this.program_, fshader);
         gl.linkProgram(this.program_);
         if (!gl.getProgramParameter(this.program_, gl.LINK_STATUS)) {
-            console.error("Program Link Error");
+            console.error("Program Link Error")
             console.error(this.gl.getProgramInfoLog(this.program_));
             gl.deleteShader(vshader);
             gl.deleteShader(fshader);
@@ -54,15 +51,18 @@ class ShaderProgram {
             return;
         }
     }
-    Use() {
+
+    Use(): void {
         if (!this.program_)
             return;
         this.gl.useProgram(this.program_);
     }
-    GetVertexPosition(vertexName) {
+
+    GetVertexPosition(vertexName: string): number {
         return this.gl.getAttribLocation(this.program_, vertexName);
     }
-    createShader(type, sourceCode) {
+
+    private createShader(type: number, sourceCode: string): WebGLShader | null {
         let shader = this.gl.createShader(type);
         if (!shader)
             return null;
@@ -70,25 +70,23 @@ class ShaderProgram {
         this.gl.compileShader(shader);
         let status = this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS);
         if (!status) {
-            if (type == this.gl.VERTEX_SHADER)
-                console.error("Vertex shader compile error");
-            if (type == this.gl.FRAGMENT_SHADER)
-                console.error("Fragment shader compile error");
+            if (type == this.gl.VERTEX_SHADER) console.error("Vertex shader compile error");
+            if (type == this.gl.FRAGMENT_SHADER) console.error("Fragment shader compile error");
             console.error(this.gl.getShaderInfoLog(shader));
             return null;
         }
         return shader;
     }
 }
-class MyWebGLAppHW0 {
-    constructor(width = 512, height = 384) {
-        this.width = width;
-        this.height = height;
-        this.divElement_ = null;
-        this.canvasElement_ = null;
-        this.gl = null;
-        this.vbo = null;
-        this.program = null;
+
+class WebGLAppHW0 {
+    private divElement_: HTMLDivElement | null = null;
+    private canvasElement_: HTMLCanvasElement | null = null;
+    private gl: WebGLRenderingContext | null = null;
+    private vbo: StaticVertexBufferObject | null = null;
+    private program: ShaderProgram | null = null;
+
+    constructor(public width: number = 512, public height: number = 384) {
         this.divElement_ = document.createElement("div");
         this.canvasElement_ = document.createElement("canvas");
         if (this.canvasElement_) {
@@ -107,30 +105,34 @@ class MyWebGLAppHW0 {
         }
         document.body.appendChild(this.divElement_);
     }
-    run() {
-        if (!this.gl)
-            return;
+
+    run(): void {
+        if (!this.gl) return;
         this.init(this.gl);
         this.mainloop(0);
     }
-    mainloop(timestamp) {
+
+    mainloop(timestamp: number): void {
         let self = this;
         this.display(timestamp / 1000.0);
-        window.requestAnimationFrame((t) => {
+        window.requestAnimationFrame((t: number) => {
             self.mainloop(t);
         });
     }
-    init(gl) {
+
+    init(gl: WebGLRenderingContext): void {
         this.vbo = new StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
             -1, -1, 0, 1,
             1, -1, 0, 1,
             0, 1, 0, 1
         ]));
-        this.program = new ShaderProgram(gl, "attribute vec4 position; void main(){ gl_Position = position; }", "void main() { gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0); }");
+        this.program = new ShaderProgram(gl,
+            "attribute vec4 position; void main(){ gl_Position = position; }",
+            "void main() { gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0); }");
     }
-    display(t) {
-        if (!this.gl || !this.canvasElement_)
-            return;
+
+    display(t: number): void {
+        if (!this.gl || !this.canvasElement_) return;
         let gl = this.gl;
         gl.clearColor(0.2, 0.15 * Math.sin(t) + 0.15, 0.4, 1.0);
         gl.clear(this.gl.COLOR_BUFFER_BIT);
