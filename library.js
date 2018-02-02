@@ -1155,10 +1155,10 @@ var Utils;
     }
     Utils.GetURLResource = GetURLResource;
     function GetURLPath(url) {
-        let resource = GetURLResource(url);
         let parts = url.split('/');
-        let path = parts.pop() || parts.pop();
-        path = parts.pop() + "/";
+        if (!parts.pop())
+            parts.pop();
+        let path = parts.join("/") + "/";
         if (path) {
             return path;
         }
@@ -1738,6 +1738,69 @@ class HW0StaticVertexBufferObject {
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
 }
+class IndexedGeometryMesh {
+    constructor(_renderingContext) {
+        this._renderingContext = _renderingContext;
+        this.vertices = [];
+        this.indices = [];
+        this.surfaces = [];
+        this._mtllib = "";
+        this._mtl = "";
+        this._vertex = new Vertex();
+    }
+    SetMtllib(mtllib) {
+        this._mtllib = mtllib;
+    }
+    SetMtl(mtl) {
+        this._mtl = mtl;
+    }
+    BeginSurface(mode) {
+        if (this.surfaces.length == 0) {
+            // if no surfaces exist, add one
+            this.surfaces.push(new Surface(mode, this.indices.length, this._mtllib, this._mtl));
+        }
+        else if (this.currentIndexCount != 0) {
+            // do not add a surface if the most recent one is empty
+            this.surfaces.push(new Surface(mode, this.indices.length, this._mtllib, this._mtl));
+        }
+    }
+    AddIndex(i) {
+        if (this.surfaces.length == 0)
+            return;
+        if (i < 0) {
+            this.indices.push(this.vertices.length - i);
+        }
+        else {
+            this.indices.push(i);
+        }
+        this.surfaces[this.surfaces.length - 1].Add();
+    }
+    get currentIndexCount() {
+        if (this.surfaces.length == 0)
+            return 0;
+        return this.surfaces[this.surfaces.length - 1].count;
+    }
+    SetNormal(n) {
+        this._vertex.normal.copy(n);
+    }
+    SetColor(c) {
+        this._vertex.color.copy(c);
+    }
+    SetTexCoord(t) {
+        this._vertex.texcoord.copy(c);
+    }
+    AddVertex(v) {
+        this._vertex.position.copy(v);
+        this.vertices.push(this._vertex);
+        this._vertex = new Vertex();
+    }
+    BuildBuffers() {
+        // Building the VBO goes here
+    }
+    Render(rc) {
+        // Rendering code goes here
+    }
+}
 class OldWebGLAppHW0 {
     constructor(width = 512, height = 384) {
         this.width = width;
@@ -1827,6 +1890,7 @@ class Scenegraph {
         this._cubeTextures = new Map();
         this._textures = new Map();
         this._nodes = [];
+        this._meshes = new Map();
         this._tempNode = new ScenegraphNode("working");
         this._defaultRenderConfig = new RenderConfig(this.renderingContext, `attribute vec4 aPosition;
              void main() {
@@ -1932,40 +1996,27 @@ class Scenegraph {
         }
         return this._defaultRenderConfig;
     }
+    RenderMesh(name, rc) {
+        let mesh = this._meshes.get(name);
+        if (mesh) {
+            mesh.Render(rc);
+        }
+    }
     processTextFile(data, name, path, assetType) {
-        // split into lines
-        let lines = data.split(/[\n\r]+/);
-        for (let line of lines) {
-            let splittokens = line.split(/\s+/);
-            let tokens = [];
-            for (let t of splittokens) {
-                if (t.length != 0)
-                    tokens.push(t);
-            }
-            // ignore blank lines
-            if (tokens.length == 0) {
-                continue;
-            }
-            // ignore comments
-            if (tokens[0] == '#') {
-                continue;
-            }
-            // console.log(name + ": " + line);
-            switch (assetType) {
-                // ".SCN"
-                case SGAssetType.Scene:
-                    this.processSceneTokens(tokens, path);
-                    break;
-                // ".OBJ"
-                case SGAssetType.GeometryGroup:
-                    this.processGeometryGroupTokens(tokens, path);
-                    break;
-                // ".MTL"
-                case SGAssetType.MaterialLibrary:
-                    console.log("MTLLIB: " + line);
-                    this.processMaterialLibraryTokens(tokens, path);
-                    break;
-            }
+        let textParser = new TextParser(data);
+        switch (assetType) {
+            // ".SCN"
+            case SGAssetType.Scene:
+                this.loadScene(textParser.lines, name, path);
+                break;
+            // ".OBJ"
+            case SGAssetType.GeometryGroup:
+                this.loadOBJ(textParser.lines, name, path);
+                break;
+            // ".MTL"
+            case SGAssetType.MaterialLibrary:
+                this.loadMTL(textParser.lines, name, path);
+                break;
         }
     }
     processTextureMap(image, name, assetType) {
@@ -1995,16 +2046,18 @@ class Scenegraph {
             }
         }
     }
-    processSceneTokens(tokens, path) {
+    loadScene(lines, name, path) {
         // sundir <direction: Vector3>
         // camera <eye: Vector3> <center: Vector3> <up: Vector3>
         // transform <worldMatrix: Matrix4>
         // geometryGroup <objUrl: string>
-        if (tokens[0] == "geometryGroup") {
-            this.Load(path + tokens[1]);
+        for (let tokens of lines) {
+            if (tokens[0] == "geometryGroup") {
+                this.Load(path + tokens[1]);
+            }
         }
     }
-    processGeometryGroupTokens(tokens, path) {
+    loadOBJ(lines, name, path) {
         // mtllib <mtlUrl: string>
         // usemtl <name: string>
         // v <position: Vector3>
@@ -2018,34 +2071,99 @@ class Scenegraph {
         // o <objectName: string>
         // g <newSmoothingGroup: string>
         // s <newSmoothingGroup: string>
-        if (tokens[0] == "mtllib") {
-            this.Load(path + tokens[1]);
+        for (let tokens of lines) {
+            if (tokens[0] == "mtllib") {
+                this.Load(path + tokens[1]);
+            }
         }
+        let mesh = new IndexedGeometryMesh(this.renderingContext);
+        this._meshes.set(name, mesh);
     }
-    processMaterialLibraryTokens(tokens, path) {
+    loadMTL(lines, name, path) {
         // newmtl <name: string>
         // Kd <color: Vector3>
         // Ks <color: Vector3>
         // map_Kd <url: string>
         // map_Ks <url: string>
         // map_normal <url: string>
-        if (tokens[0] == "map_Kd") {
-            this.Load(path + tokens[1]);
-        }
-        else if (tokens[0] == "map_Ks") {
-            this.Load(path + tokens[1]);
-        }
-        else if (tokens[0] == "map_normal") {
-            this.Load(path + tokens[1]);
-        }
-        else {
-            console.log("MTLLIB: Ignoring");
-            for (let t of tokens) {
-                console.log("\"" + t + "\"");
+        for (let tokens of lines) {
+            if (tokens[0] == "map_Kd") {
+                this.Load(path + tokens[1]);
+            }
+            else if (tokens[0] == "map_Ks") {
+                this.Load(path + tokens[1]);
+            }
+            else if (tokens[0] == "map_normal") {
+                this.Load(path + tokens[1]);
+            }
+            else {
+                console.log("MTLLIB: Ignoring");
+                for (let t of tokens) {
+                    console.log("\"" + t + "\"");
+                }
             }
         }
     }
 }
+class Surface {
+    constructor(mode, offset, mtllib, mtl) {
+        this.mode = mode;
+        this.offset = offset;
+        this.mtllib = mtllib;
+        this.mtl = mtl;
+        this.count = 0;
+    }
+    Add() {
+        this.count++;
+    }
+}
+class TextParser {
+    constructor(data) {
+        this.lines = [];
+        // split using regex any sequence of 1 or more newlines or carriage returns
+        let lines = data.split(/[\n\r]+/);
+        for (let line of lines) {
+            let unfilteredTokens = line.split(/\s+/);
+            let tokens = [];
+            for (let t of unfilteredTokens) {
+                if (t.length > 0) {
+                    if (t[0] != '#') {
+                        tokens.push(t);
+                    }
+                }
+            }
+            if (tokens.length == 0) {
+                continue;
+            }
+            this.lines.push(tokens);
+        }
+    }
+}
+class Vertex {
+    constructor(position = new Vector3(0, 0, 0), normal = new Vector3(0, 0, 1), color = new Vector3(1, 1, 1), texcoord = new Vector3(0, 0, 0)) {
+        this.position = position;
+        this.normal = normal;
+        this.color = color;
+        this.texcoord = texcoord;
+    }
+    asFloat32Array() {
+        return new Float32Array([
+            this.position.x, this.position.y, this.position.z,
+            this.normal.x, this.normal.y, this.normal.z,
+            this.color.x, this.color.y, this.color.z,
+            this.texcoord.x, this.texcoord.y, this.texcoord.z
+        ]);
+    }
+    asArray() {
+        return [
+            this.position.x, this.position.y, this.position.z,
+            this.normal.x, this.normal.y, this.normal.z,
+            this.color.x, this.color.y, this.color.z,
+            this.texcoord.x, this.texcoord.y, this.texcoord.z
+        ];
+    }
+}
+;
 class WebGLAppHW0 {
     constructor(width = 512, height = 384) {
         this.width = width;
@@ -2107,6 +2225,7 @@ class WebGLAppHW0 {
                 gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0);
             }`);
         this.scenegraph.AddRenderConfig("default", "rtr-homework0-shader.vert", "rtr-homework0-shader.frag");
+        this.scenegraph.Load("../assets/test_scene.scn");
     }
     display(t) {
         if (!this.scenegraph || !this.renderingContext || !this.canvasElement_)
@@ -2122,11 +2241,11 @@ class WebGLAppHW0 {
             this.program.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(t)));
             this.program.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.aspectRatio, 0.1, 100.0));
             this.program.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
-            this.program.SetMatrix4("WorldMatrix", Matrix4.makeTranslation(0.0, 0.0, 0.0));
+            this.program.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * t, 0.0, 1.0, 0.0));
             this.vbo.Render(this.program.GetAttribLocation("aPosition"));
+            //this.scenegraph.Render("teapot");
         }
         gl.useProgram(null);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
 }
 //# sourceMappingURL=library.js.map

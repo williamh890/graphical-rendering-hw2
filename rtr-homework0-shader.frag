@@ -45,7 +45,7 @@ void PrepareForShading() {
 }
 
 void PrepareLights() {
-    Lights[0].NdotL = max(0.0, dot(Fragment.Nbump, vec3(0.25, 0.5, 0.5)));
+    Lights[0].NdotL = max(0.0, dot(Fragment.Nbump, SunDirTo));
     Lights[0].L = SunDirTo;
     Lights[0].E0 = SunE0;
 }

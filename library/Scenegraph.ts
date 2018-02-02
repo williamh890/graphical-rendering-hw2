@@ -27,6 +27,7 @@ class Scenegraph {
     private _cubeTextures: Map<string, WebGLTexture> = new Map<string, WebGLTexture>();
     private _textures: Map<string, WebGLTexture> = new Map<string, WebGLTexture>();
     private _nodes: Array<ScenegraphNode> = [];
+    private _meshes: Map<string, IndexedGeometryMesh> = new Map<string, IndexedGeometryMesh>();
     private _tempNode: ScenegraphNode = new ScenegraphNode("working");
 
     private _defaultRenderConfig: RenderConfig;
@@ -132,44 +133,29 @@ class Scenegraph {
         return this._defaultRenderConfig;
     }
 
+    RenderMesh(name: string, rc: RenderConfig) {
+        let mesh = this._meshes.get(name);
+        if (mesh) {
+            mesh.Render(rc);
+        }
+    }
+
     private processTextFile(data: string, name: string, path: string, assetType: SGAssetType): void {
-        // split into lines
-        let lines = data.split(/[\n\r]+/);
+        let textParser = new TextParser(data);
 
-        for (let line of lines) {
-            let splittokens = line.split(/\s+/);
-            let tokens: string[] = [];
-            for (let t of splittokens) {
-                if (t.length != 0)
-                    tokens.push(t);
-            }
-
-            // ignore blank lines
-            if (tokens.length == 0) {
-                continue;
-            }
-            // ignore comments
-            if (tokens[0] == '#') {
-                continue;
-            }
-
-            // console.log(name + ": " + line);
-
-            switch (assetType) {
-                // ".SCN"
-                case SGAssetType.Scene:
-                    this.processSceneTokens(tokens, path);
-                    break;
-                // ".OBJ"
-                case SGAssetType.GeometryGroup:
-                    this.processGeometryGroupTokens(tokens, path);
-                    break;
-                // ".MTL"
-                case SGAssetType.MaterialLibrary:
-                    console.log("MTLLIB: " + line);
-                    this.processMaterialLibraryTokens(tokens, path);
-                    break;
-            }
+        switch (assetType) {
+            // ".SCN"
+            case SGAssetType.Scene:
+                this.loadScene(textParser.lines, name, path);
+                break;
+            // ".OBJ"
+            case SGAssetType.GeometryGroup:
+                this.loadOBJ(textParser.lines, name, path);
+                break;
+            // ".MTL"
+            case SGAssetType.MaterialLibrary:
+                this.loadMTL(textParser.lines, name, path);
+                break;
         }
     }
 
@@ -200,18 +186,20 @@ class Scenegraph {
         }
     }
 
-    private processSceneTokens(tokens: string[], path: string): void {
+    private loadScene(lines: string[][], name: string, path: string): void {
         // sundir <direction: Vector3>
         // camera <eye: Vector3> <center: Vector3> <up: Vector3>
         // transform <worldMatrix: Matrix4>
         // geometryGroup <objUrl: string>
 
-        if (tokens[0] == "geometryGroup") {
-            this.Load(path + tokens[1]);
+        for (let tokens of lines) {
+            if (tokens[0] == "geometryGroup") {
+                this.Load(path + tokens[1]);
+            }
         }
     }
 
-    private processGeometryGroupTokens(tokens: string[], path: string): void {
+    private loadOBJ(lines: string[][], name: string, path: string): void {
         // mtllib <mtlUrl: string>
         // usemtl <name: string>
         // v <position: Vector3>
@@ -226,12 +214,18 @@ class Scenegraph {
         // g <newSmoothingGroup: string>
         // s <newSmoothingGroup: string>
 
-        if (tokens[0] == "mtllib") {
-            this.Load(path + tokens[1]);
+        for (let tokens of lines) {
+            if (tokens[0] == "mtllib") {
+                this.Load(path + tokens[1]);
+            }    
         }
+
+        let mesh = new IndexedGeometryMesh(this.renderingContext);
+
+        this._meshes.set(name, mesh);
     }
 
-    private processMaterialLibraryTokens(tokens: string[], path: string): void {
+    private loadMTL(lines: string[][], name: string, path: string): void {
         // newmtl <name: string>
         // Kd <color: Vector3>
         // Ks <color: Vector3>
@@ -239,20 +233,22 @@ class Scenegraph {
         // map_Ks <url: string>
         // map_normal <url: string>
 
-        if (tokens[0] == "map_Kd") {
-            this.Load(path + tokens[1]);
-        }
-        else if (tokens[0] == "map_Ks") {
-            this.Load(path + tokens[1]);
-        }
-        else if (tokens[0] == "map_normal") {
-            this.Load(path + tokens[1]);
-        }
-        else {
-            console.log("MTLLIB: Ignoring");
-            for (let t of tokens) {
-                console.log("\"" + t + "\"");
+        for (let tokens of lines) {
+            if (tokens[0] == "map_Kd") {
+                this.Load(path + tokens[1]);
             }
+            else if (tokens[0] == "map_Ks") {
+                this.Load(path + tokens[1]);
+            }
+            else if (tokens[0] == "map_normal") {
+                this.Load(path + tokens[1]);
+            }
+            else {
+                console.log("MTLLIB: Ignoring");
+                for (let t of tokens) {
+                    console.log("\"" + t + "\"");
+                }
+            }    
         }
     }
 }

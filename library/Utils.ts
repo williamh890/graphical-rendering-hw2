@@ -39,10 +39,9 @@ namespace Utils {
     }
 
     export function GetURLPath(url: string): string {
-        let resource = GetURLResource(url);
         let parts = url.split('/');
-        let path = parts.pop() || parts.pop();
-        path = parts.pop() + "/";
+        if (!parts.pop()) parts.pop();
+        let path = parts.join("/") + "/";
         if (path) {
             return path;
         }

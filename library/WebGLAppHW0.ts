@@ -63,6 +63,7 @@ class WebGLAppHW0 {
                 gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0);
             }`);
         this.scenegraph.AddRenderConfig("default", "rtr-homework0-shader.vert", "rtr-homework0-shader.frag");
+        this.scenegraph.Load("../assets/test_scene.scn");
     }
 
     private display(t: number): void {
@@ -78,10 +79,11 @@ class WebGLAppHW0 {
             this.program.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(t)));
             this.program.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.aspectRatio, 0.1, 100.0));
             this.program.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
-            this.program.SetMatrix4("WorldMatrix", Matrix4.makeTranslation(0.0, 0.0, 0.0));
+            this.program.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * t, 0.0, 1.0, 0.0));
             this.vbo.Render(this.program.GetAttribLocation("aPosition"));
+
+            //this.scenegraph.Render("teapot");
         }
         gl.useProgram(null);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
 }
