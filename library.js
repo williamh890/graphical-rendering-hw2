@@ -1079,9 +1079,35 @@ class RenderConfig {
 /// // <reference path="Texture.ts" />
 /// // <reference path="MaterialLibrary.ts" />
 class RenderingContext {
-    constructor(gl) {
-        this.gl = gl;
+    constructor(width = 512, height = 384) {
+        this.width = width;
+        this.height = height;
         this.enabledExtensions = [];
+        this.divElement_ = null;
+        this.canvasElement_ = null;
+        this.aspectRatio = 1.0;
+        this.divElement_ = document.createElement("div");
+        this.canvasElement_ = document.createElement("canvas");
+        if (this.canvasElement_) {
+            let gl = this.canvasElement_.getContext("webgl");
+            if (!gl) {
+                gl = this.canvasElement_.getContext("experimental-webgl");
+            }
+            if (!gl) {
+                this.divElement_.innerText = "WebGL not supported.";
+                throw "Unable to create rendering context!";
+            }
+            else {
+                this.gl = gl;
+                this.divElement_.appendChild(this.canvasElement_);
+                this.divElement_.align = "center";
+                this.aspectRatio = width / height;
+            }
+        }
+        else {
+            throw "Unable to create canvas!";
+        }
+        document.body.appendChild(this.divElement_);
         this.EnableExtensions([
             "OES_standard_derivatives",
             "WEBGL_depth_texture",
@@ -2168,35 +2194,15 @@ class WebGLAppHW0 {
     constructor(width = 512, height = 384) {
         this.width = width;
         this.height = height;
-        this.renderingContext = null;
-        this.divElement_ = null;
-        this.canvasElement_ = null;
-        this.gl = null;
         this.vbo = null;
         this.aspectRatio = 1.0;
-        this.divElement_ = document.createElement("div");
-        this.canvasElement_ = document.createElement("canvas");
-        if (this.canvasElement_) {
-            this.gl = this.canvasElement_.getContext("webgl");
-            if (!this.gl) {
-                this.gl = this.canvasElement_.getContext("experimental-webgl");
-            }
-            if (!this.gl) {
-                this.canvasElement_ = null;
-                this.divElement_.innerText = "WebGL not supported.";
-            }
-            else {
-                this.divElement_.appendChild(this.canvasElement_);
-                this.divElement_.align = "center";
-                this.renderingContext = new RenderingContext(this.gl);
-                this.scenegraph = new Scenegraph(this.renderingContext);
-                this.aspectRatio = width / height;
-            }
-        }
-        document.body.appendChild(this.divElement_);
+        this.renderingContext = new RenderingContext(width, height);
+        if (!this.renderingContext)
+            throw "Unable to create rendering context!";
+        this.scenegraph = new Scenegraph(this.renderingContext);
     }
     run() {
-        if (!this.gl || !this.scenegraph)
+        if (!this.renderingContext)
             return;
         this.init();
         this.mainloop(0);
@@ -2209,7 +2215,7 @@ class WebGLAppHW0 {
         });
     }
     init() {
-        if (!this.renderingContext || !this.scenegraph)
+        if (!this.renderingContext)
             return;
         let gl = this.renderingContext.gl;
         this.vbo = new HW0StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
@@ -2221,12 +2227,12 @@ class WebGLAppHW0 {
         this.scenegraph.Load("../assets/test_scene.scn");
     }
     display(t) {
-        if (!this.scenegraph || !this.renderingContext || !this.canvasElement_)
+        if (!this.renderingContext)
             return;
         let gl = this.renderingContext.gl;
         gl.clearColor(0.2, 0.15 * Math.sin(t) + 0.15, 0.4, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.viewport(0, 0, this.canvasElement_.width, this.canvasElement_.height);
+        gl.viewport(0, 0, this.renderingContext.width, this.renderingContext.height);
         let rc = this.scenegraph.UseRenderConfig("default");
         if (this.vbo) {
             rc.Use();

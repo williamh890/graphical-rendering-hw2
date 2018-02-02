@@ -33,8 +33,34 @@
 
 class RenderingContext {
     private enabledExtensions: any[] = [];
+    private divElement_: HTMLDivElement | null = null;
+    private canvasElement_: HTMLCanvasElement | null = null;
+    public gl: WebGLRenderingContext;
+    public aspectRatio: number = 1.0;
 
-    constructor(public gl: WebGLRenderingContext) {
+    constructor(public width: number = 512, public height: number = 384) {
+        this.divElement_ = document.createElement("div");
+        this.canvasElement_ = document.createElement("canvas");
+        if (this.canvasElement_) {
+            let gl = this.canvasElement_.getContext("webgl");
+            if (!gl) {
+                gl = this.canvasElement_.getContext("experimental-webgl");
+            }
+            if (!gl) {
+                this.divElement_.innerText = "WebGL not supported.";
+                throw "Unable to create rendering context!";
+            }
+            else {
+                this.gl = gl;
+                this.divElement_.appendChild(this.canvasElement_);
+                this.divElement_.align = "center";
+                this.aspectRatio = width / height;
+            }
+        } else {
+            throw "Unable to create canvas!";
+        }
+        document.body.appendChild(this.divElement_);
+
         this.EnableExtensions([
             "OES_standard_derivatives",
             "WEBGL_depth_texture",
