@@ -2173,7 +2173,6 @@ class WebGLAppHW0 {
         this.canvasElement_ = null;
         this.gl = null;
         this.vbo = null;
-        this.program = null;
         this.aspectRatio = 1.0;
         this.divElement_ = document.createElement("div");
         this.canvasElement_ = document.createElement("canvas");
@@ -2218,12 +2217,6 @@ class WebGLAppHW0 {
             1, -1, 0,
             0, 1, 0
         ]));
-        this.program = new RenderConfig(this.renderingContext, `attribute vec4 aPosition;
-            void main() {
-                gl_Position = aPosition;
-            }`, `void main() {
-                gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0);
-            }`);
         this.scenegraph.AddRenderConfig("default", "rtr-homework0-shader.vert", "rtr-homework0-shader.frag");
         this.scenegraph.Load("../assets/test_scene.scn");
     }
@@ -2234,15 +2227,15 @@ class WebGLAppHW0 {
         gl.clearColor(0.2, 0.15 * Math.sin(t) + 0.15, 0.4, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.viewport(0, 0, this.canvasElement_.width, this.canvasElement_.height);
-        this.program = this.scenegraph.UseRenderConfig("default");
-        if (this.vbo && this.program) {
-            this.program.Use();
-            this.program.SetUniform3f("SunDirTo", Vector3.makeUnit(0.25, 0.5, Math.sin(t)));
-            this.program.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(t)));
-            this.program.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.aspectRatio, 0.1, 100.0));
-            this.program.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
-            this.program.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * t, 0.0, 1.0, 0.0));
-            this.vbo.Render(this.program.GetAttribLocation("aPosition"));
+        let rc = this.scenegraph.UseRenderConfig("default");
+        if (this.vbo) {
+            rc.Use();
+            rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0.25, 0.5, Math.sin(t)));
+            rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(t)));
+            rc.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.aspectRatio, 0.1, 100.0));
+            rc.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
+            rc.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * t, 0.0, 1.0, 0.0));
+            this.vbo.Render(rc.GetAttribLocation("aPosition"));
             //this.scenegraph.Render("teapot");
         }
         gl.useProgram(null);
