@@ -318,7 +318,7 @@ class Matrix4 {
 		);
 	}
 
-	asColMajorArray(): number[] {
+	toColMajorArray(): number[] {
 		return [
 			this.m11, this.m21, this.m31, this.m41,
 			this.m12, this.m22, this.m32, this.m42,
@@ -327,7 +327,7 @@ class Matrix4 {
 		];
 	}
 
-	asRowMajorArray(): number[] {
+	toRowMajorArray(): number[] {
 		return [
 			this.m11, this.m12, this.m13, this.m14,
 			this.m21, this.m22, this.m23, this.m24,

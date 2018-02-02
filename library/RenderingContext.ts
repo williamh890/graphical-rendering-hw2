@@ -32,15 +32,39 @@
 
 
 class RenderingContext {
-    constructor(public gl: WebGLRenderingContext) {
+    private enabledExtensions: any[] = [];
 
+    constructor(public gl: WebGLRenderingContext) {
+        this.EnableExtensions([
+            "OES_standard_derivatives",
+            "WEBGL_depth_texture",
+            "OES_texture_float",
+            "OES_element_index_uint"
+        ]);
     }
 
-    // CreateRenderConfig(vertShaderText: string, fragShaderText: string): RenderConfig {
-    //     return new RenderConfig(this, vertShaderText, fragShaderText);
-    // }
-
-    // CreateIndexGeometryMesh(): IndexedGeometryMesh {
-    //     return new IndexedGeometryMesh(this);
-    // }
+    // ...
+    EnableExtensions(names: string[]): boolean {
+        let supportedExtensions = this.gl.getSupportedExtensions();
+        if (!supportedExtensions)
+            return false;
+        let allFound = true;
+        for (var name of names) {
+            let found = false;
+            for (var ext of supportedExtensions) {
+                if (name == ext) {
+                    this.enabledExtensions.push(this.gl.getExtension(name));
+                    console.log("Extension " + name + " enabled")
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                console.log("Extension " + name + " not enabled")
+                allFound = false;
+                break;
+            }
+        }
+        return allFound;
+    }
 }

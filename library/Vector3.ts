@@ -42,6 +42,14 @@ class Vector3 {
         return this;
     }
 
+    static make(x: number, y: number, z: number): Vector3 {
+        return new Vector3(x, y, z);
+    }
+
+    static makeUnit(x: number, y: number, z: number): Vector3 {
+        return (new Vector3(x, y, z)).norm();
+    }
+
     add(v: Vector3): Vector3 {
         return new Vector3(
             this.x + v.x,
@@ -75,6 +83,10 @@ class Vector3 {
             this.y / divisor,
             this.z / divisor
         )
+    }
+
+    toArray(): number[] {
+        return [this.x, this.y, this.z];
     }
 
     toFloat32Array(): Float32Array {

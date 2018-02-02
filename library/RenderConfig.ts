@@ -57,6 +57,38 @@ class RenderConfig {
 
     }
 
+    public SetMatrix4(uniformName: string, m: Matrix4): void {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniformMatrix4fv(location, false, m.toColMajorArray());
+        }
+    }
+
+    public SetUniform1i(uniformName: string, x: number): void {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniform1i(location, x);
+        }        
+    }
+
+    public SetUniform3f(uniformName: string, v: Vector3): void {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniform3fv(location, v.toFloat32Array());
+        }        
+    }
+
+    public SetUniform4f(uniformName: string, v: Vector4): void {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniform4fv(location, v.toFloat32Array());
+        }        
+    }
+
     public GetAttribLocation(name: string): number {
         let gl = this._context.gl;
         return gl.getAttribLocation(this._program, name);
@@ -83,7 +115,12 @@ class RenderConfig {
                 let errorElement: HTMLElement | null = document.getElementById("errors");
                 if (!errorElement && infoLog) {
                     let newDiv: HTMLDivElement = document.createElement("div");
+                    newDiv.appendChild(document.createTextNode("Vertex shader info log"));
+                    newDiv.appendChild(document.createElement("br"));
                     newDiv.appendChild(document.createTextNode(infoLog));
+                    let pre = document.createElement("pre");
+                    pre.textContent = this._fragShaderSource;
+                    newDiv.appendChild(pre);
                     document.body.appendChild(newDiv);
                 }
             }
@@ -108,7 +145,12 @@ class RenderConfig {
                 let errorElement: HTMLElement | null = document.getElementById("errors");
                 if (!errorElement && infoLog) {
                     let newDiv: HTMLDivElement = document.createElement("div");
+                    newDiv.appendChild(document.createTextNode("Fragment shader info log"));
+                    newDiv.appendChild(document.createElement("br"));
                     newDiv.appendChild(document.createTextNode(infoLog));
+                    let pre = document.createElement("pre");
+                    pre.textContent = this._fragShaderSource;
+                    newDiv.appendChild(pre);
                     document.body.appendChild(newDiv);
                 }
             }
@@ -139,6 +181,8 @@ class RenderConfig {
                         let errorElement: HTMLElement | null = document.getElementById("errors");
                         if (!errorElement && infoLog) {
                             let newDiv: HTMLDivElement = document.createElement("div");
+                            newDiv.appendChild(document.createTextNode("PROGRAM INFO LOG"));
+                            newDiv.appendChild(document.createElement("br"));
                             newDiv.appendChild(document.createTextNode(infoLog));
                             document.body.appendChild(newDiv);
                         }

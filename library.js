@@ -144,6 +144,12 @@ class Vector3 {
         this.z = z;
         return this;
     }
+    static make(x, y, z) {
+        return new Vector3(x, y, z);
+    }
+    static makeUnit(x, y, z) {
+        return (new Vector3(x, y, z)).norm();
+    }
     add(v) {
         return new Vector3(this.x + v.x, this.y + v.y, this.z + v.z);
     }
@@ -158,6 +164,9 @@ class Vector3 {
         if (divisor == 0.0)
             return new Vector3();
         return new Vector3(this.x / divisor, this.y / divisor, this.z / divisor);
+    }
+    toArray() {
+        return [this.x, this.y, this.z];
     }
     toFloat32Array() {
         return new Float32Array([this.x, this.y, this.z]);
@@ -762,7 +771,7 @@ class Matrix4 {
             return Matrix4.makeRotation(180.0, 0.0, 1.0, 0.0);
         return new Matrix4(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     }
-    asColMajorArray() {
+    toColMajorArray() {
         return [
             this.m11, this.m21, this.m31, this.m41,
             this.m12, this.m22, this.m32, this.m42,
@@ -770,7 +779,7 @@ class Matrix4 {
             this.m14, this.m24, this.m34, this.m44
         ];
     }
-    asRowMajorArray() {
+    toRowMajorArray() {
         return [
             this.m11, this.m12, this.m13, this.m14,
             this.m21, this.m22, this.m23, this.m24,
@@ -892,6 +901,34 @@ class RenderConfig {
     }
     Restore() {
     }
+    SetMatrix4(uniformName, m) {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniformMatrix4fv(location, false, m.toColMajorArray());
+        }
+    }
+    SetUniform1i(uniformName, x) {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniform1i(location, x);
+        }
+    }
+    SetUniform3f(uniformName, v) {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniform3fv(location, v.toFloat32Array());
+        }
+    }
+    SetUniform4f(uniformName, v) {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location) {
+            gl.uniform4fv(location, v.toFloat32Array());
+        }
+    }
     GetAttribLocation(name) {
         let gl = this._context.gl;
         return gl.getAttribLocation(this._program, name);
@@ -916,7 +953,12 @@ class RenderConfig {
                 let errorElement = document.getElementById("errors");
                 if (!errorElement && infoLog) {
                     let newDiv = document.createElement("div");
+                    newDiv.appendChild(document.createTextNode("Vertex shader info log"));
+                    newDiv.appendChild(document.createElement("br"));
                     newDiv.appendChild(document.createTextNode(infoLog));
+                    let pre = document.createElement("pre");
+                    pre.textContent = this._fragShaderSource;
+                    newDiv.appendChild(pre);
                     document.body.appendChild(newDiv);
                 }
             }
@@ -940,7 +982,12 @@ class RenderConfig {
                 let errorElement = document.getElementById("errors");
                 if (!errorElement && infoLog) {
                     let newDiv = document.createElement("div");
+                    newDiv.appendChild(document.createTextNode("Fragment shader info log"));
+                    newDiv.appendChild(document.createElement("br"));
                     newDiv.appendChild(document.createTextNode(infoLog));
+                    let pre = document.createElement("pre");
+                    pre.textContent = this._fragShaderSource;
+                    newDiv.appendChild(pre);
                     document.body.appendChild(newDiv);
                 }
             }
@@ -970,6 +1017,8 @@ class RenderConfig {
                         let errorElement = document.getElementById("errors");
                         if (!errorElement && infoLog) {
                             let newDiv = document.createElement("div");
+                            newDiv.appendChild(document.createTextNode("PROGRAM INFO LOG"));
+                            newDiv.appendChild(document.createElement("br"));
                             newDiv.appendChild(document.createTextNode(infoLog));
                             document.body.appendChild(newDiv);
                         }
@@ -1032,6 +1081,37 @@ class RenderConfig {
 class RenderingContext {
     constructor(gl) {
         this.gl = gl;
+        this.enabledExtensions = [];
+        this.EnableExtensions([
+            "OES_standard_derivatives",
+            "WEBGL_depth_texture",
+            "OES_texture_float",
+            "OES_element_index_uint"
+        ]);
+    }
+    // ...
+    EnableExtensions(names) {
+        let supportedExtensions = this.gl.getSupportedExtensions();
+        if (!supportedExtensions)
+            return false;
+        let allFound = true;
+        for (var name of names) {
+            let found = false;
+            for (var ext of supportedExtensions) {
+                if (name == ext) {
+                    this.enabledExtensions.push(this.gl.getExtension(name));
+                    console.log("Extension " + name + " enabled");
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                console.log("Extension " + name + " not enabled");
+                allFound = false;
+                break;
+            }
+        }
+        return allFound;
     }
 }
 // Fluxions WebGL Library
@@ -1641,8 +1721,8 @@ class HW0StaticVertexBufferObject {
             return;
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STATIC_DRAW);
-        this.bufferLength = vertexData.length * 4;
-        this.count = vertexData.length / 4;
+        this.bufferLength = vertexData.length * 3;
+        this.count = vertexData.length / 3;
         this.gl = gl;
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
@@ -1651,7 +1731,7 @@ class HW0StaticVertexBufferObject {
             return;
         let gl = this.gl;
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-        gl.vertexAttribPointer(vertexLoc, 4, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(vertexLoc, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(vertexLoc);
         gl.drawArrays(this.drawArraysMode, 0, this.count);
         gl.disableVertexAttribArray(vertexLoc);
@@ -1721,6 +1801,251 @@ class OldWebGLAppHW0 {
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
     }
 }
+var SGAssetType;
+(function (SGAssetType) {
+    SGAssetType[SGAssetType["Scene"] = 0] = "Scene";
+    SGAssetType[SGAssetType["GeometryGroup"] = 1] = "GeometryGroup";
+    SGAssetType[SGAssetType["MaterialLibrary"] = 2] = "MaterialLibrary";
+    SGAssetType[SGAssetType["ShaderProgram"] = 3] = "ShaderProgram";
+    SGAssetType[SGAssetType["Image"] = 4] = "Image";
+})(SGAssetType || (SGAssetType = {}));
+;
+class ScenegraphNode {
+    constructor(name) {
+        this.name = name;
+        this.geometryGroup = "";
+        this.transform = Matrix4.makeIdentity();
+    }
+}
+class Scenegraph {
+    constructor(renderingContext) {
+        this.renderingContext = renderingContext;
+        this.textfiles = [];
+        this.imagefiles = [];
+        this.shaderSrcFiles = [];
+        this._renderConfigs = new Map();
+        this._cubeTextures = new Map();
+        this._textures = new Map();
+        this._nodes = [];
+        this._tempNode = new ScenegraphNode("working");
+        this._defaultRenderConfig = new RenderConfig(this.renderingContext, `attribute vec4 aPosition;
+             void main() {
+                 gl_Position = aPosition;
+            }`, `void main() {
+                gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0);
+            }`);
+    }
+    get loaded() {
+        for (let t of this.textfiles) {
+            if (!t.loaded)
+                return false;
+        }
+        for (let i of this.imagefiles) {
+            if (!i.loaded)
+                return false;
+        }
+        for (let s of this.shaderSrcFiles) {
+            if (!s.loaded)
+                return false;
+        }
+        return true;
+    }
+    get failed() {
+        for (let t of this.textfiles) {
+            if (t.failed)
+                return true;
+        }
+        for (let i of this.imagefiles) {
+            if (i.failed)
+                return true;
+        }
+        for (let s of this.shaderSrcFiles) {
+            if (s.failed)
+                return true;
+        }
+        return false;
+    }
+    get percentLoaded() {
+        let a = 0;
+        for (let t of this.textfiles) {
+            if (t.loaded)
+                a++;
+        }
+        for (let i of this.imagefiles) {
+            if (i.loaded)
+                a++;
+        }
+        for (let s of this.shaderSrcFiles) {
+            if (s.loaded)
+                a++;
+        }
+        return 100.0 * a / (this.textfiles.length + this.imagefiles.length + this.shaderSrcFiles.length);
+    }
+    Load(url) {
+        let name = Utils.GetURLResource(url);
+        let self = this;
+        let assetType;
+        let ext = Utils.GetExtension(name);
+        let path = Utils.GetURLPath(url);
+        if (ext == "scn")
+            assetType = SGAssetType.Scene;
+        else if (ext == "obj")
+            assetType = SGAssetType.GeometryGroup;
+        else if (ext == "mtl")
+            assetType = SGAssetType.MaterialLibrary;
+        else if (ext == "png")
+            assetType = SGAssetType.Image;
+        else if (ext == "jpg")
+            assetType = SGAssetType.Image;
+        else
+            return;
+        console.log("Scenegraph::Load() => Requesting " + url);
+        if (assetType == SGAssetType.Image) {
+            this.imagefiles.push(new Utils.ImageFileLoader(url, (data, name, assetType) => {
+                console.log("Scenegraph::Load() => Loaded " + name);
+                self.processTextureMap(data, name, assetType);
+                console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+            }));
+        }
+        else {
+            this.textfiles.push(new Utils.TextFileLoader(url, (data, name, assetType) => {
+                console.log("Scenegraph::Load() => Loaded " + name);
+                self.processTextFile(data, name, path, assetType);
+                console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+            }, assetType));
+        }
+    }
+    AddRenderConfig(name, vertshaderUrl, fragshaderUrl) {
+        let self = this;
+        this.shaderSrcFiles.push(new Utils.ShaderLoader(vertshaderUrl, fragshaderUrl, (vertShaderSource, fragShaderSource) => {
+            console.log("Scenegraph::Load() => Loaded " + vertshaderUrl);
+            console.log("Scenegraph::Load() => Loaded " + fragshaderUrl);
+            this._renderConfigs.set(name, new RenderConfig(this.renderingContext, vertShaderSource, fragShaderSource));
+            console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+        }));
+    }
+    UseRenderConfig(name) {
+        let rc = this._renderConfigs.get(name);
+        if (rc) {
+            rc.Use();
+            return rc;
+        }
+        return this._defaultRenderConfig;
+    }
+    processTextFile(data, name, path, assetType) {
+        // split into lines
+        let lines = data.split(/[\n\r]+/);
+        for (let line of lines) {
+            let splittokens = line.split(/\s+/);
+            let tokens = [];
+            for (let t of splittokens) {
+                if (t.length != 0)
+                    tokens.push(t);
+            }
+            // ignore blank lines
+            if (tokens.length == 0) {
+                continue;
+            }
+            // ignore comments
+            if (tokens[0] == '#') {
+                continue;
+            }
+            // console.log(name + ": " + line);
+            switch (assetType) {
+                // ".SCN"
+                case SGAssetType.Scene:
+                    this.processSceneTokens(tokens, path);
+                    break;
+                // ".OBJ"
+                case SGAssetType.GeometryGroup:
+                    this.processGeometryGroupTokens(tokens, path);
+                    break;
+                // ".MTL"
+                case SGAssetType.MaterialLibrary:
+                    console.log("MTLLIB: " + line);
+                    this.processMaterialLibraryTokens(tokens, path);
+                    break;
+            }
+        }
+    }
+    processTextureMap(image, name, assetType) {
+        let gl = this.renderingContext.gl;
+        if (image.width = 6 * image.height) {
+            let images = new Array(6);
+            Utils.SeparateCubeMapImages(image, images);
+            let texture = gl.createTexture();
+            if (texture) {
+                gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+                for (let i = 0; i < 6; i++) {
+                    if (!images[i])
+                        continue;
+                    gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, images[i]);
+                }
+                gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+                this._cubeTextures.set(name, texture);
+            }
+        }
+        else {
+            let texture = gl.createTexture();
+            if (texture) {
+                gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+                gl.generateMipmap(gl.TEXTURE_2D);
+                this._textures.set(name, texture);
+            }
+        }
+    }
+    processSceneTokens(tokens, path) {
+        // sundir <direction: Vector3>
+        // camera <eye: Vector3> <center: Vector3> <up: Vector3>
+        // transform <worldMatrix: Matrix4>
+        // geometryGroup <objUrl: string>
+        if (tokens[0] == "geometryGroup") {
+            this.Load(path + tokens[1]);
+        }
+    }
+    processGeometryGroupTokens(tokens, path) {
+        // mtllib <mtlUrl: string>
+        // usemtl <name: string>
+        // v <position: Vector3>
+        // vn <normal: Vector3>
+        // vt <texcoord: Vector2|Vector3>
+        // vc <color: Vector4>
+        // f <v1: number> <v2: number> <v3: number>
+        // f <v1: number>/<vt1:number> <v2: number>/<vt2:number> <v2: number>/<vt2:number>
+        // f <v1: number>//<vt1:number> <v2: number>//<vt2:number> <v2: number>//<vt2:number>
+        // f <v1: number>/<vn1:number>/<vt1:number> <v2: number>/<vn2:number>/<vt2:number> <v2: number>/<vn3:number>/<vt2:number>
+        // o <objectName: string>
+        // g <newSmoothingGroup: string>
+        // s <newSmoothingGroup: string>
+        if (tokens[0] == "mtllib") {
+            this.Load(path + tokens[1]);
+        }
+    }
+    processMaterialLibraryTokens(tokens, path) {
+        // newmtl <name: string>
+        // Kd <color: Vector3>
+        // Ks <color: Vector3>
+        // map_Kd <url: string>
+        // map_Ks <url: string>
+        // map_normal <url: string>
+        if (tokens[0] == "map_Kd") {
+            this.Load(path + tokens[1]);
+        }
+        else if (tokens[0] == "map_Ks") {
+            this.Load(path + tokens[1]);
+        }
+        else if (tokens[0] == "map_normal") {
+            this.Load(path + tokens[1]);
+        }
+        else {
+            console.log("MTLLIB: Ignoring");
+            for (let t of tokens) {
+                console.log("\"" + t + "\"");
+            }
+        }
+    }
+}
 class WebGLAppHW0 {
     constructor(width = 512, height = 384) {
         this.width = width;
@@ -1731,6 +2056,7 @@ class WebGLAppHW0 {
         this.gl = null;
         this.vbo = null;
         this.program = null;
+        this.aspectRatio = 1.0;
         this.divElement_ = document.createElement("div");
         this.canvasElement_ = document.createElement("canvas");
         if (this.canvasElement_) {
@@ -1746,14 +2072,16 @@ class WebGLAppHW0 {
                 this.divElement_.appendChild(this.canvasElement_);
                 this.divElement_.align = "center";
                 this.renderingContext = new RenderingContext(this.gl);
+                this.scenegraph = new Scenegraph(this.renderingContext);
+                this.aspectRatio = width / height;
             }
         }
         document.body.appendChild(this.divElement_);
     }
     run() {
-        if (!this.gl)
+        if (!this.gl || !this.scenegraph)
             return;
-        this.init(this.gl);
+        this.init();
         this.mainloop(0);
     }
     mainloop(timestamp) {
@@ -1763,24 +2091,39 @@ class WebGLAppHW0 {
             self.mainloop(t);
         });
     }
-    init(gl) {
+    init() {
+        if (!this.renderingContext || !this.scenegraph)
+            return;
+        let gl = this.renderingContext.gl;
         this.vbo = new HW0StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
-            -1, -1, 0, 1,
-            1, -1, 0, 1,
-            0, 1, 0, 1
+            -1, -1, 0,
+            1, -1, 0,
+            0, 1, 0
         ]));
-        this.program = new HW0ShaderProgram(gl, "attribute vec4 position; void main(){ gl_Position = position; }", "void main() { gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0); }");
+        this.program = new RenderConfig(this.renderingContext, `attribute vec4 aPosition;
+            void main() {
+                gl_Position = aPosition;
+            }`, `void main() {
+                gl_FragColor = vec4(0.4, 0.3, 0.2, 1.0);
+            }`);
+        this.scenegraph.AddRenderConfig("default", "rtr-homework0-shader.vert", "rtr-homework0-shader.frag");
     }
     display(t) {
-        if (!this.gl || !this.canvasElement_)
+        if (!this.scenegraph || !this.renderingContext || !this.canvasElement_)
             return;
-        let gl = this.gl;
+        let gl = this.renderingContext.gl;
         gl.clearColor(0.2, 0.15 * Math.sin(t) + 0.15, 0.4, 1.0);
-        gl.clear(this.gl.COLOR_BUFFER_BIT);
+        gl.clear(gl.COLOR_BUFFER_BIT);
         gl.viewport(0, 0, this.canvasElement_.width, this.canvasElement_.height);
+        this.program = this.scenegraph.UseRenderConfig("default");
         if (this.vbo && this.program) {
             this.program.Use();
-            this.vbo.Render(this.program.GetVertexPosition("position"));
+            this.program.SetUniform3f("SunDirTo", Vector3.makeUnit(0.25, 0.5, Math.sin(t)));
+            this.program.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(t)));
+            this.program.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.aspectRatio, 0.1, 100.0));
+            this.program.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
+            this.program.SetMatrix4("WorldMatrix", Matrix4.makeTranslation(0.0, 0.0, 0.0));
+            this.vbo.Render(this.program.GetAttribLocation("aPosition"));
         }
         gl.useProgram(null);
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
