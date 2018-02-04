@@ -32,8 +32,8 @@ class Scenegraph {
 
     private _defaultRenderConfig: RenderConfig;
 
-    constructor(private renderingContext: RenderingContext) {
-        this._defaultRenderConfig = new RenderConfig(this.renderingContext,
+    constructor(private _renderingContext: RenderingContext) {
+        this._defaultRenderConfig = new RenderConfig(this._renderingContext,
             `attribute vec4 aPosition;
              void main() {
                  gl_Position = aPosition;
@@ -119,7 +119,7 @@ class Scenegraph {
         this.shaderSrcFiles.push(new Utils.ShaderLoader(vertshaderUrl, fragshaderUrl, (vertShaderSource: string, fragShaderSource: string) => {
             console.log("Scenegraph::Load() => Loaded " + vertshaderUrl);
             console.log("Scenegraph::Load() => Loaded " + fragshaderUrl);
-            this._renderConfigs.set(name, new RenderConfig(this.renderingContext, vertShaderSource, fragShaderSource));
+            this._renderConfigs.set(name, new RenderConfig(this._renderingContext, vertShaderSource, fragShaderSource));
             console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
         }));
     }
@@ -133,11 +133,19 @@ class Scenegraph {
         return this._defaultRenderConfig;
     }
 
+    UseMaterial(mtllib: string, mtl: string) {
+
+    }
+
     RenderMesh(name: string, rc: RenderConfig) {
         let mesh = this._meshes.get(name);
         if (mesh) {
-            mesh.Render(rc);
+            mesh.Render(rc, this);
         }
+    }
+
+    RenderScene(shaderName: string) {
+
     }
 
     private processTextFile(data: string, name: string, path: string, assetType: SGAssetType): void {
@@ -160,7 +168,7 @@ class Scenegraph {
     }
 
     private processTextureMap(image: HTMLImageElement, name: string, assetType: SGAssetType): void {
-        let gl = this.renderingContext.gl;
+        let gl = this._renderingContext.gl;
         if (image.width = 6 * image.height) {
             let images: Array<ImageData> = new Array<ImageData>(6);
             Utils.SeparateCubeMapImages(image, images);
@@ -214,13 +222,46 @@ class Scenegraph {
         // g <newSmoothingGroup: string>
         // s <newSmoothingGroup: string>
 
-        for (let tokens of lines) {
-            if (tokens[0] == "mtllib") {
-                this.Load(path + tokens[1]);
-            }    
-        }
+        let gl = this._renderingContext.gl;
+        let positions: Vector3[] = [];
+        let normals: Vector3[] = [];
+        let colors: Vector3[] = [];
+        let texcoords: Vector3[] = [];
+        let mesh: IndexedGeometryMesh = new IndexedGeometryMesh(this._renderingContext);
 
-        let mesh = new IndexedGeometryMesh(this.renderingContext);
+        for (let tokens of lines) {
+            if (tokens.length >= 2) {
+                if (tokens[0] == "mtllib") {
+                    this.Load(path + tokens[1]);
+                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens))
+                } else if (tokens[1] == "usemtl") {
+                    mesh.SetMtl(TextParser.ParseIdentifier(tokens));
+                } else if (tokens[1] == "o") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                } else if (tokens[1] == "g") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                } else if (tokens[1] == "s") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+            }
+            if (tokens.length >= 4) {
+                if (tokens[0] == "v") {
+                    positions.push(TextParser.ParseVector(tokens));
+                } else if (tokens[0] == "vn") {
+                    normals.push(TextParser.ParseVector(tokens));
+                } else if (tokens[0] == "vt") {
+                    texcoords.push(TextParser.ParseVector(tokens));
+                } else if (tokens[0] == "f") {
+                    let indices = TextParser.ParseFace(tokens);
+                    for (let i = 0; i < 3; i++) {
+                        mesh.SetNormal(normals[indices[i * 3 + 1]]);
+                        mesh.SetTexCoord(texcoords[indices[i * 3 + 2]]);
+                        mesh.AddVertex(positions[indices[i * 3 + 0]]);
+                        mesh.AddIndex(-1);
+                    }
+                }
+            }
+        }
 
         this._meshes.set(name, mesh);
     }
@@ -248,7 +289,7 @@ class Scenegraph {
                 for (let t of tokens) {
                     console.log("\"" + t + "\"");
                 }
-            }    
+            }
         }
     }
 }

@@ -43,6 +43,8 @@ class RenderConfig {
         this.Reset(this._vertShaderSource, this._fragShaderSource);
     }
 
+    get usable(): boolean { return this.IsCompiledAndLinked(); }
+
     IsCompiledAndLinked(): boolean {
         if (this._isCompiled && this._isLinked)
             return true;
@@ -70,7 +72,7 @@ class RenderConfig {
         let location = gl.getUniformLocation(this._program, uniformName);
         if (location) {
             gl.uniform1i(location, x);
-        }        
+        }
     }
 
     public SetUniform3f(uniformName: string, v: Vector3): void {
@@ -78,7 +80,7 @@ class RenderConfig {
         let location = gl.getUniformLocation(this._program, uniformName);
         if (location) {
             gl.uniform3fv(location, v.toFloat32Array());
-        }        
+        }
     }
 
     public SetUniform4f(uniformName: string, v: Vector4): void {
@@ -86,7 +88,7 @@ class RenderConfig {
         let location = gl.getUniformLocation(this._program, uniformName);
         if (location) {
             gl.uniform4fv(location, v.toFloat32Array());
-        }        
+        }
     }
 
     public GetAttribLocation(name: string): number {

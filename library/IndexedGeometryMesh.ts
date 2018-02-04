@@ -7,8 +7,20 @@ class IndexedGeometryMesh {
     private _mtllib: string = "";
     private _mtl: string = "";
     private _vertex: Vertex = new Vertex();
+    private _dirty: boolean = true;
+
+    private _vbo: WebGLBuffer;
+    private _ibo: WebGLBuffer;
+    private _vboData: Float32Array = new Float32Array();
+    private _iboData: Uint32Array = new Uint32Array();
 
     constructor(private _renderingContext: RenderingContext) {
+        let gl = this._renderingContext.gl;
+        let vbo = gl.createBuffer();
+        let ibo = gl.createBuffer();
+        if (!vbo || !ibo) throw "IndexedGeometryMesh::constructor() Unable to create buffer";
+        this._vbo = vbo;
+        this._ibo = ibo;
     }
 
     SetMtllib(mtllib: string): void {
@@ -35,6 +47,7 @@ class IndexedGeometryMesh {
             this.indices.push(i);
         }
         this.surfaces[this.surfaces.length - 1].Add();
+        this._dirty = true;
     }
     get currentIndexCount(): number {
         if (this.surfaces.length == 0)
@@ -59,9 +72,60 @@ class IndexedGeometryMesh {
 
     BuildBuffers(): void {
         // Building the VBO goes here
+        if (!this._dirty) return;
+
+        let vertices: number[] = [];
+        for (let v of this.vertices) {
+            vertices.concat(v.asArray());
+        }
+
+        this._vboData = new Float32Array(vertices);
+        this._iboData = new Uint32Array(this.indices);
+
+        let gl = this._renderingContext.gl;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, this._vboData, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._iboData, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+
+        this._dirty = false;
     }
 
-    Render(rc: RenderConfig): void {
+    Render(rc: RenderConfig, sg: Scenegraph): void {
         // Rendering code goes here
+        this.BuildBuffers();
+        let gl = this._renderingContext.gl;
+
+        let offsets = [0, 12, 24, 36];
+        let locs = [
+            rc.GetAttribLocation("aPosition"),
+            rc.GetAttribLocation("aNormal"),
+            rc.GetAttribLocation("aColor"),
+            rc.GetAttribLocation("aTexcoord")
+        ];
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
+
+        for (let i = 0; i < 4; i++) {
+            if (locs[i] >= 0) {
+                gl.enableVertexAttribArray(locs[i]);
+                gl.vertexAttribPointer(locs[i], 3, gl.FLOAT, false, 48, offsets[i]);
+            }
+        }
+
+        for (let s of this.surfaces) {
+            sg.UseMaterial(rc, s.mtllib, s.mtl);
+            gl.drawElements(s.mode, s.count, gl.UNSIGNED_INT, s.offset);
+        }
+
+        for (let i = 0; i < 4; i++) {
+            if (locs[i] >= 0) {
+                gl.disableVertexAttribArray(locs[i]);
+            }
+        }
     }
 }

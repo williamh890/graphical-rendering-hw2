@@ -891,6 +891,7 @@ class RenderConfig {
         this.uniformInfo = new Map();
         this.Reset(this._vertShaderSource, this._fragShaderSource);
     }
+    get usable() { return this.IsCompiledAndLinked(); }
     IsCompiledAndLinked() {
         if (this._isCompiled && this._isLinked)
             return true;
@@ -1773,6 +1774,16 @@ class IndexedGeometryMesh {
         this._mtllib = "";
         this._mtl = "";
         this._vertex = new Vertex();
+        this._dirty = true;
+        this._vboData = new Float32Array();
+        this._iboData = new Uint32Array();
+        let gl = this._renderingContext.gl;
+        let vbo = gl.createBuffer();
+        let ibo = gl.createBuffer();
+        if (!vbo || !ibo)
+            throw "IndexedGeometryMesh::constructor() Unable to create buffer";
+        this._vbo = vbo;
+        this._ibo = ibo;
     }
     SetMtllib(mtllib) {
         this._mtllib = mtllib;
@@ -1800,6 +1811,7 @@ class IndexedGeometryMesh {
             this.indices.push(i);
         }
         this.surfaces[this.surfaces.length - 1].Add();
+        this._dirty = true;
     }
     get currentIndexCount() {
         if (this.surfaces.length == 0)
@@ -1822,9 +1834,51 @@ class IndexedGeometryMesh {
     }
     BuildBuffers() {
         // Building the VBO goes here
+        if (!this._dirty)
+            return;
+        let vertices = [];
+        for (let v of this.vertices) {
+            vertices.concat(v.asArray());
+        }
+        this._vboData = new Float32Array(vertices);
+        this._iboData = new Uint32Array(this.indices);
+        let gl = this._renderingContext.gl;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, this._vboData, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._iboData, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        this._dirty = false;
     }
-    Render(rc) {
+    Render(rc, sg) {
         // Rendering code goes here
+        this.BuildBuffers();
+        let gl = this._renderingContext.gl;
+        let offsets = [0, 12, 24, 36];
+        let locs = [
+            rc.GetAttribLocation("aPosition"),
+            rc.GetAttribLocation("aNormal"),
+            rc.GetAttribLocation("aColor"),
+            rc.GetAttribLocation("aTexcoord")
+        ];
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._ibo);
+        for (let i = 0; i < 4; i++) {
+            if (locs[i] >= 0) {
+                gl.enableVertexAttribArray(locs[i]);
+                gl.vertexAttribPointer(locs[i], 3, gl.FLOAT, false, 48, offsets[i]);
+            }
+        }
+        for (let s of this.surfaces) {
+            sg.UseMaterial(rc, s.mtllib, s.mtl);
+            gl.drawElements(s.mode, s.count, gl.UNSIGNED_INT, s.offset);
+        }
+        for (let i = 0; i < 4; i++) {
+            if (locs[i] >= 0) {
+                gl.disableVertexAttribArray(locs[i]);
+            }
+        }
     }
 }
 class OldWebGLAppHW0 {
@@ -1907,8 +1961,8 @@ class ScenegraphNode {
     }
 }
 class Scenegraph {
-    constructor(renderingContext) {
-        this.renderingContext = renderingContext;
+    constructor(_renderingContext) {
+        this._renderingContext = _renderingContext;
         this.textfiles = [];
         this.imagefiles = [];
         this.shaderSrcFiles = [];
@@ -1918,7 +1972,7 @@ class Scenegraph {
         this._nodes = [];
         this._meshes = new Map();
         this._tempNode = new ScenegraphNode("working");
-        this._defaultRenderConfig = new RenderConfig(this.renderingContext, `attribute vec4 aPosition;
+        this._defaultRenderConfig = new RenderConfig(this._renderingContext, `attribute vec4 aPosition;
              void main() {
                  gl_Position = aPosition;
             }`, `void main() {
@@ -2010,7 +2064,7 @@ class Scenegraph {
         this.shaderSrcFiles.push(new Utils.ShaderLoader(vertshaderUrl, fragshaderUrl, (vertShaderSource, fragShaderSource) => {
             console.log("Scenegraph::Load() => Loaded " + vertshaderUrl);
             console.log("Scenegraph::Load() => Loaded " + fragshaderUrl);
-            this._renderConfigs.set(name, new RenderConfig(this.renderingContext, vertShaderSource, fragShaderSource));
+            this._renderConfigs.set(name, new RenderConfig(this._renderingContext, vertShaderSource, fragShaderSource));
             console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
         }));
     }
@@ -2022,11 +2076,15 @@ class Scenegraph {
         }
         return this._defaultRenderConfig;
     }
+    UseMaterial(mtllib, mtl) {
+    }
     RenderMesh(name, rc) {
         let mesh = this._meshes.get(name);
         if (mesh) {
-            mesh.Render(rc);
+            mesh.Render(rc, this);
         }
+    }
+    RenderScene(shaderName) {
     }
     processTextFile(data, name, path, assetType) {
         let textParser = new TextParser(data);
@@ -2046,7 +2104,7 @@ class Scenegraph {
         }
     }
     processTextureMap(image, name, assetType) {
-        let gl = this.renderingContext.gl;
+        let gl = this._renderingContext.gl;
         if (image.width = 6 * image.height) {
             let images = new Array(6);
             Utils.SeparateCubeMapImages(image, images);
@@ -2097,12 +2155,52 @@ class Scenegraph {
         // o <objectName: string>
         // g <newSmoothingGroup: string>
         // s <newSmoothingGroup: string>
+        let gl = this._renderingContext.gl;
+        let positions = [];
+        let normals = [];
+        let colors = [];
+        let texcoords = [];
+        let mesh = new IndexedGeometryMesh(this._renderingContext);
         for (let tokens of lines) {
-            if (tokens[0] == "mtllib") {
-                this.Load(path + tokens[1]);
+            if (tokens.length >= 2) {
+                if (tokens[0] == "mtllib") {
+                    this.Load(path + tokens[1]);
+                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens));
+                }
+                else if (tokens[1] == "usemtl") {
+                    mesh.SetMtl(TextParser.ParseIdentifier(tokens));
+                }
+                else if (tokens[1] == "o") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+                else if (tokens[1] == "g") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+                else if (tokens[1] == "s") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+            }
+            if (tokens.length >= 4) {
+                if (tokens[0] == "v") {
+                    positions.push(TextParser.ParseVector(tokens));
+                }
+                else if (tokens[0] == "vn") {
+                    normals.push(TextParser.ParseVector(tokens));
+                }
+                else if (tokens[0] == "vt") {
+                    texcoords.push(TextParser.ParseVector(tokens));
+                }
+                else if (tokens[0] == "f") {
+                    let indices = TextParser.ParseFace(tokens);
+                    for (let i = 0; i < 3; i++) {
+                        mesh.SetNormal(normals[indices[i * 3 + 1]]);
+                        mesh.SetTexCoord(texcoords[indices[i * 3 + 2]]);
+                        mesh.AddVertex(positions[indices[i * 3 + 0]]);
+                        mesh.AddIndex(-1);
+                    }
+                }
             }
         }
-        let mesh = new IndexedGeometryMesh(this.renderingContext);
         this._meshes.set(name, mesh);
     }
     loadMTL(lines, name, path) {
@@ -2164,6 +2262,42 @@ class TextParser {
             this.lines.push(tokens);
         }
     }
+    static ParseIdentifier(tokens) {
+        if (tokens.length >= 2)
+            return tokens[1].replace(/[^\w]+/, "_");
+        return "unknown";
+    }
+    static ParseVector(tokens) {
+        let x = (tokens.length >= 2) ? parseInt(tokens[1]) : 0.0;
+        let y = (tokens.length >= 3) ? parseInt(tokens[2]) : 0.0;
+        let z = (tokens.length >= 4) ? parseInt(tokens[3]) : 0.0;
+        return new Vector3(x, y, z);
+    }
+    static ParseFaceIndices(token) {
+        let indices = [0, 0, 0];
+        let tokens = token.split("/");
+        if (tokens.length >= 1) {
+            indices[0] = parseInt(tokens[0]);
+        }
+        if (tokens.length == 2) {
+            indices[2] = parseInt(tokens[1]);
+        }
+        else if (tokens.length == 3) {
+            indices[1] = parseInt(tokens[1]);
+            indices[2] = parseInt(tokens[2]);
+        }
+        return indices;
+    }
+    static ParseFace(tokens) {
+        let indices = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+        if (tokens.length < 4) {
+            return indices;
+        }
+        let v1 = TextParser.ParseFaceIndices(tokens[1]);
+        let v2 = TextParser.ParseFaceIndices(tokens[2]);
+        let v3 = TextParser.ParseFaceIndices(tokens[3]);
+        return [...v1, ...v2, ...v3];
+    }
 }
 class Vertex {
     constructor(position = new Vector3(0, 0, 0), normal = new Vector3(0, 0, 1), color = new Vector3(1, 1, 1), texcoord = new Vector3(0, 0, 0)) {
@@ -2205,10 +2339,18 @@ class WebGLAppHW0 {
         this.scenegraph = new Scenegraph(this.renderingContext);
     }
     run() {
-        if (!this.renderingContext)
-            return;
         this.init();
         this.mainloop(0);
+    }
+    init() {
+        let gl = this.renderingContext.gl;
+        this.vbo = new HW0StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
+            -1, -1, 0,
+            1, -1, 0,
+            0, 1, 0
+        ]));
+        this.scenegraph.AddRenderConfig("default", "shaders/rtr-homework0-shader.vert", "shaders/rtr-homework0-shader.frag");
+        this.scenegraph.Load("../assets/test_scene.scn");
     }
     mainloop(timestamp) {
         let self = this;
@@ -2221,17 +2363,70 @@ class WebGLAppHW0 {
             self.mainloop(t);
         });
     }
-    init() {
+    update() {
+        // update sim/game loop code here
+        // this.t1 = elapsed time of program
+        // this.dt = elapsed time between frames
+    }
+    display() {
         if (!this.renderingContext)
             return;
+        let gl = this.renderingContext.gl;
+        gl.clearColor(0.2, 0.15 * Math.sin(this.t1) + 0.15, 0.4, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.viewport(0, 0, this.renderingContext.width, this.renderingContext.height);
+        let rc = this.scenegraph.UseRenderConfig("default");
+        if (rc.usable && this.vbo) {
+            rc.Use();
+            rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0.25, 0.5, Math.sin(this.t1)));
+            rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(this.t1)));
+            rc.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
+            rc.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
+            rc.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
+            this.vbo.Render(rc.GetAttribLocation("aPosition"));
+            //this.scenegraph.Render("teapot");
+        }
+        gl.useProgram(null);
+    }
+}
+class WebGLAppHW1 {
+    constructor(width = 512, height = 384) {
+        this.width = width;
+        this.height = height;
+        this.vbo = null;
+        this.aspectRatio = 1.0;
+        this.t0 = 0;
+        this.t1 = 0;
+        this.dt = 0;
+        this.renderingContext = new RenderingContext(width, height);
+        if (!this.renderingContext)
+            throw "Unable to create rendering context!";
+        this.scenegraph = new Scenegraph(this.renderingContext);
+    }
+    run() {
+        this.init();
+        this.mainloop(0);
+    }
+    init() {
         let gl = this.renderingContext.gl;
         this.vbo = new HW0StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
             -1, -1, 0,
             1, -1, 0,
             0, 1, 0
         ]));
-        this.scenegraph.AddRenderConfig("default", "rtr-homework0-shader.vert", "rtr-homework0-shader.frag");
+        this.scenegraph.AddRenderConfig("default", "shaders/rtr-homework0-shader.vert", "shaders/rtr-homework0-shader.frag");
         this.scenegraph.Load("../assets/test_scene.scn");
+    }
+    mainloop(timestamp) {
+        let self = this;
+        this.t0 = this.t1;
+        this.t1 = timestamp / 1000.0;
+        this.dt = this.t1 - this.t0;
+        this.update();
+        this.display();
+        window.requestAnimationFrame((t) => {
+            self.mainloop(t);
+        });
     }
     update() {
         // update sim/game loop code here
@@ -2254,6 +2449,7 @@ class WebGLAppHW0 {
             rc.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
             rc.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
             this.vbo.Render(rc.GetAttribLocation("aPosition"));
+            this.scenegraph.RenderMesh("teapot.obj", rc);
             //this.scenegraph.Render("teapot");
         }
         gl.useProgram(null);
