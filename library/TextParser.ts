@@ -29,9 +29,9 @@ class TextParser {
     }
 
     static ParseVector(tokens: string[]): Vector3 {
-        let x: number = (tokens.length >= 2) ? parseInt(tokens[1]) : 0.0;
-        let y: number = (tokens.length >= 3) ? parseInt(tokens[2]) : 0.0;
-        let z: number = (tokens.length >= 4) ? parseInt(tokens[3]) : 0.0;
+        let x: number = (tokens.length >= 2) ? parseFloat(tokens[1]) : 0.0;
+        let y: number = (tokens.length >= 3) ? parseFloat(tokens[2]) : 0.0;
+        let z: number = (tokens.length >= 4) ? parseFloat(tokens[3]) : 0.0;
         return new Vector3(x, y, z);
     }
 
@@ -39,13 +39,13 @@ class TextParser {
         let indices: Array<number> = [0, 0, 0];
         let tokens = token.split("/");
         if (tokens.length >= 1) {
-            indices[0] = parseInt(tokens[0]);
+            indices[0] = parseInt(tokens[0]) - 1;
         }
         if (tokens.length == 2) {
-            indices[2] = parseInt(tokens[1]);
+            indices[2] = parseInt(tokens[2]) - 1;
         } else if (tokens.length == 3) {
-            indices[1] = parseInt(tokens[1]);
-            indices[2] = parseInt(tokens[2]);
+            indices[1] = parseInt(tokens[1]) - 1;
+            indices[2] = parseInt(tokens[2]) - 1;
         }
         return indices;
     }

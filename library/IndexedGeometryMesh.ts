@@ -1,6 +1,6 @@
 
 class IndexedGeometryMesh {
-    public vertices: Vertex[] = [];
+    public vertices: number[] = [];
     public indices: number[] = [];
     public surfaces: Surface[] = [];
 
@@ -42,7 +42,7 @@ class IndexedGeometryMesh {
     AddIndex(i: number): void {
         if (this.surfaces.length == 0) return;
         if (i < 0) {
-            this.indices.push(this.vertices.length - i);
+            this.indices.push((this.vertices.length / 12) + i);
         } else {
             this.indices.push(i);
         }
@@ -62,11 +62,11 @@ class IndexedGeometryMesh {
         this._vertex.color.copy(c);
     }
     SetTexCoord(t: Vector3): void {
-        this._vertex.texcoord.copy(c);
+        this._vertex.texcoord.copy(t);
     }
     AddVertex(v: Vector3): void {
         this._vertex.position.copy(v);
-        this.vertices.push(this._vertex);
+        this.vertices.push(...this._vertex.asArray());
         this._vertex = new Vertex();
     }
 
@@ -74,12 +74,7 @@ class IndexedGeometryMesh {
         // Building the VBO goes here
         if (!this._dirty) return;
 
-        let vertices: number[] = [];
-        for (let v of this.vertices) {
-            vertices.concat(v.asArray());
-        }
-
-        this._vboData = new Float32Array(vertices);
+        this._vboData = new Float32Array(this.vertices);
         this._iboData = new Uint32Array(this.indices);
 
         let gl = this._renderingContext.gl;

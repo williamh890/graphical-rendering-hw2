@@ -41,6 +41,8 @@ class RenderingContext {
     constructor(public width: number = 512, public height: number = 384) {
         this.divElement_ = document.createElement("div");
         this.canvasElement_ = document.createElement("canvas");
+        this.canvasElement_.width = width;
+        this.canvasElement_.height = height;
         if (this.canvasElement_) {
             let gl = this.canvasElement_.getContext("webgl");
             if (!gl) {

@@ -133,7 +133,7 @@ class Scenegraph {
         return this._defaultRenderConfig;
     }
 
-    UseMaterial(mtllib: string, mtl: string) {
+    UseMaterial(rc: RenderConfig, mtllib: string, mtl: string) {
 
     }
 
@@ -229,13 +229,17 @@ class Scenegraph {
         let texcoords: Vector3[] = [];
         let mesh: IndexedGeometryMesh = new IndexedGeometryMesh(this._renderingContext);
 
+        // in case there are no mtllib's, usemtl's, o's, g's, or s's
+        mesh.BeginSurface(gl.TRIANGLES);
         for (let tokens of lines) {
             if (tokens.length >= 2) {
                 if (tokens[0] == "mtllib") {
                     this.Load(path + tokens[1]);
-                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens))
+                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
                 } else if (tokens[1] == "usemtl") {
                     mesh.SetMtl(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
                 } else if (tokens[1] == "o") {
                     mesh.BeginSurface(gl.TRIANGLES);
                 } else if (tokens[1] == "g") {
@@ -254,15 +258,21 @@ class Scenegraph {
                 } else if (tokens[0] == "f") {
                     let indices = TextParser.ParseFace(tokens);
                     for (let i = 0; i < 3; i++) {
-                        mesh.SetNormal(normals[indices[i * 3 + 1]]);
-                        mesh.SetTexCoord(texcoords[indices[i * 3 + 2]]);
-                        mesh.AddVertex(positions[indices[i * 3 + 0]]);
-                        mesh.AddIndex(-1);
+                        try {
+                            mesh.SetNormal(normals[indices[i * 3 + 2]]);
+                            mesh.SetTexCoord(texcoords[indices[i * 3 + 1]]);
+                            mesh.AddVertex(positions[indices[i * 3 + 0]]);
+                            mesh.AddIndex(-1);
+                        }
+                        catch (s) {
+                            console.log(s);
+                        }
                     }
                 }
             }
         }
 
+        mesh.BuildBuffers();
         this._meshes.set(name, mesh);
     }
 

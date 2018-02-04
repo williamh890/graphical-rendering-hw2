@@ -65,11 +65,10 @@ class WebGLAppHW1 {
             rc.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
             rc.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
             rc.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
-            this.vbo.Render(rc.GetAttribLocation("aPosition"));
 
             this.scenegraph.RenderMesh("teapot.obj", rc);
 
-            //this.scenegraph.Render("teapot");
+            rc.Restore();
         }
         gl.useProgram(null);
     }

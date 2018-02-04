@@ -889,6 +889,8 @@ class RenderConfig {
         this._programLinkStatus = false;
         this.uniforms = new Map();
         this.uniformInfo = new Map();
+        this.useDepthTest = true;
+        this.depthTest = WebGLRenderingContext.LESS;
         this.Reset(this._vertShaderSource, this._fragShaderSource);
     }
     get usable() { return this.IsCompiledAndLinked(); }
@@ -898,9 +900,20 @@ class RenderConfig {
         return false;
     }
     Use() {
-        this._context.gl.useProgram(this._program);
+        let gl = this._context.gl;
+        gl.useProgram(this._program);
+        if (this.useDepthTest) {
+            gl.enable(gl.DEPTH_TEST);
+            gl.depthFunc(this.depthTest);
+        }
     }
     Restore() {
+        let gl = this._context.gl;
+        gl.useProgram(null);
+        if (this.useDepthTest) {
+            gl.disable(gl.DEPTH_TEST);
+            gl.depthFunc(gl.LESS);
+        }
     }
     SetMatrix4(uniformName, m) {
         let gl = this._context.gl;
@@ -1089,6 +1102,8 @@ class RenderingContext {
         this.aspectRatio = 1.0;
         this.divElement_ = document.createElement("div");
         this.canvasElement_ = document.createElement("canvas");
+        this.canvasElement_.width = width;
+        this.canvasElement_.height = height;
         if (this.canvasElement_) {
             let gl = this.canvasElement_.getContext("webgl");
             if (!gl) {
@@ -1805,7 +1820,7 @@ class IndexedGeometryMesh {
         if (this.surfaces.length == 0)
             return;
         if (i < 0) {
-            this.indices.push(this.vertices.length - i);
+            this.indices.push((this.vertices.length / 12) + i);
         }
         else {
             this.indices.push(i);
@@ -1825,22 +1840,18 @@ class IndexedGeometryMesh {
         this._vertex.color.copy(c);
     }
     SetTexCoord(t) {
-        this._vertex.texcoord.copy(c);
+        this._vertex.texcoord.copy(t);
     }
     AddVertex(v) {
         this._vertex.position.copy(v);
-        this.vertices.push(this._vertex);
+        this.vertices.push(...this._vertex.asArray());
         this._vertex = new Vertex();
     }
     BuildBuffers() {
         // Building the VBO goes here
         if (!this._dirty)
             return;
-        let vertices = [];
-        for (let v of this.vertices) {
-            vertices.concat(v.asArray());
-        }
-        this._vboData = new Float32Array(vertices);
+        this._vboData = new Float32Array(this.vertices);
         this._iboData = new Uint32Array(this.indices);
         let gl = this._renderingContext.gl;
         gl.bindBuffer(gl.ARRAY_BUFFER, this._vbo);
@@ -2076,7 +2087,7 @@ class Scenegraph {
         }
         return this._defaultRenderConfig;
     }
-    UseMaterial(mtllib, mtl) {
+    UseMaterial(rc, mtllib, mtl) {
     }
     RenderMesh(name, rc) {
         let mesh = this._meshes.get(name);
@@ -2161,14 +2172,18 @@ class Scenegraph {
         let colors = [];
         let texcoords = [];
         let mesh = new IndexedGeometryMesh(this._renderingContext);
+        // in case there are no mtllib's, usemtl's, o's, g's, or s's
+        mesh.BeginSurface(gl.TRIANGLES);
         for (let tokens of lines) {
             if (tokens.length >= 2) {
                 if (tokens[0] == "mtllib") {
                     this.Load(path + tokens[1]);
                     mesh.SetMtllib(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
                 }
                 else if (tokens[1] == "usemtl") {
                     mesh.SetMtl(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
                 }
                 else if (tokens[1] == "o") {
                     mesh.BeginSurface(gl.TRIANGLES);
@@ -2193,14 +2208,20 @@ class Scenegraph {
                 else if (tokens[0] == "f") {
                     let indices = TextParser.ParseFace(tokens);
                     for (let i = 0; i < 3; i++) {
-                        mesh.SetNormal(normals[indices[i * 3 + 1]]);
-                        mesh.SetTexCoord(texcoords[indices[i * 3 + 2]]);
-                        mesh.AddVertex(positions[indices[i * 3 + 0]]);
-                        mesh.AddIndex(-1);
+                        try {
+                            mesh.SetNormal(normals[indices[i * 3 + 2]]);
+                            mesh.SetTexCoord(texcoords[indices[i * 3 + 1]]);
+                            mesh.AddVertex(positions[indices[i * 3 + 0]]);
+                            mesh.AddIndex(-1);
+                        }
+                        catch (s) {
+                            console.log(s);
+                        }
                     }
                 }
             }
         }
+        mesh.BuildBuffers();
         this._meshes.set(name, mesh);
     }
     loadMTL(lines, name, path) {
@@ -2268,23 +2289,23 @@ class TextParser {
         return "unknown";
     }
     static ParseVector(tokens) {
-        let x = (tokens.length >= 2) ? parseInt(tokens[1]) : 0.0;
-        let y = (tokens.length >= 3) ? parseInt(tokens[2]) : 0.0;
-        let z = (tokens.length >= 4) ? parseInt(tokens[3]) : 0.0;
+        let x = (tokens.length >= 2) ? parseFloat(tokens[1]) : 0.0;
+        let y = (tokens.length >= 3) ? parseFloat(tokens[2]) : 0.0;
+        let z = (tokens.length >= 4) ? parseFloat(tokens[3]) : 0.0;
         return new Vector3(x, y, z);
     }
     static ParseFaceIndices(token) {
         let indices = [0, 0, 0];
         let tokens = token.split("/");
         if (tokens.length >= 1) {
-            indices[0] = parseInt(tokens[0]);
+            indices[0] = parseInt(tokens[0]) - 1;
         }
         if (tokens.length == 2) {
-            indices[2] = parseInt(tokens[1]);
+            indices[2] = parseInt(tokens[2]) - 1;
         }
         else if (tokens.length == 3) {
-            indices[1] = parseInt(tokens[1]);
-            indices[2] = parseInt(tokens[2]);
+            indices[1] = parseInt(tokens[1]) - 1;
+            indices[2] = parseInt(tokens[2]) - 1;
         }
         return indices;
     }
@@ -2448,9 +2469,8 @@ class WebGLAppHW1 {
             rc.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
             rc.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
             rc.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
-            this.vbo.Render(rc.GetAttribLocation("aPosition"));
             this.scenegraph.RenderMesh("teapot.obj", rc);
-            //this.scenegraph.Render("teapot");
+            rc.Restore();
         }
         gl.useProgram(null);
     }

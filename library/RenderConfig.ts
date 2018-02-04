@@ -39,6 +39,9 @@ class RenderConfig {
     public uniforms: Map<string, WebGLUniformLocation | null> = new Map<string, WebGLUniformLocation | null>();
     public uniformInfo: Map<string, WebGLActiveInfo | null> = new Map<string, WebGLActiveInfo | null>();
 
+    public useDepthTest: boolean = true;
+    public depthTest: number = WebGLRenderingContext.LESS;
+
     constructor(private _context: RenderingContext, private _vertShaderSource: string, private _fragShaderSource: string) {
         this.Reset(this._vertShaderSource, this._fragShaderSource);
     }
@@ -52,11 +55,21 @@ class RenderConfig {
     }
 
     public Use() {
-        this._context.gl.useProgram(this._program);
+        let gl = this._context.gl;
+        gl.useProgram(this._program);
+        if (this.useDepthTest) {
+            gl.enable(gl.DEPTH_TEST);
+            gl.depthFunc(this.depthTest);
+        }
     }
 
     public Restore() {
-
+        let gl = this._context.gl;
+        gl.useProgram(null);
+        if (this.useDepthTest) {
+            gl.disable(gl.DEPTH_TEST);
+            gl.depthFunc(gl.LESS);
+        }
     }
 
     public SetMatrix4(uniformName: string, m: Matrix4): void {
