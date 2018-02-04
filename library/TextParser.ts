@@ -37,6 +37,8 @@ class TextParser {
 
     static ParseFaceIndices(token: string): Array<number> {
         let indices: Array<number> = [0, 0, 0];
+        if (token.search("//"))
+            token.replace("//", "/0/");
         let tokens = token.split("/");
         if (tokens.length >= 1) {
             indices[0] = parseInt(tokens[0]) - 1;

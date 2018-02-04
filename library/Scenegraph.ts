@@ -100,16 +100,24 @@ class Scenegraph {
         console.log("Scenegraph::Load() => Requesting " + url);
 
         if (assetType == SGAssetType.Image) {
+            if (this._textures.has(name))
+                return;
             this.imagefiles.push(new Utils.ImageFileLoader(url, (data, name, assetType) => {
-                console.log("Scenegraph::Load() => Loaded " + name);
                 self.processTextureMap(data, name, assetType);
-                console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+                console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
+                let log = document.getElementById("log");
+                if (log) {
+                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                }
             }));
         } else {
             this.textfiles.push(new Utils.TextFileLoader(url, (data, name, assetType) => {
-                console.log("Scenegraph::Load() => Loaded " + name);
                 self.processTextFile(data, name, path, assetType);
-                console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+                console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
+                let log = document.getElementById("log");
+                if (log) {
+                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                }
             }, assetType));
         }
     }
@@ -117,10 +125,14 @@ class Scenegraph {
     AddRenderConfig(name: string, vertshaderUrl: string, fragshaderUrl: string) {
         let self = this;
         this.shaderSrcFiles.push(new Utils.ShaderLoader(vertshaderUrl, fragshaderUrl, (vertShaderSource: string, fragShaderSource: string) => {
-            console.log("Scenegraph::Load() => Loaded " + vertshaderUrl);
-            console.log("Scenegraph::Load() => Loaded " + fragshaderUrl);
             this._renderConfigs.set(name, new RenderConfig(this._renderingContext, vertShaderSource, fragShaderSource));
-            console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+            console.log("Scenegraph::Load() => loaded " + vertshaderUrl);
+            console.log("Scenegraph::Load() => loaded " + fragshaderUrl);
+            console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
+            let log = document.getElementById("log");
+            if (log) {
+                log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+            }
         }));
     }
 
@@ -138,6 +150,12 @@ class Scenegraph {
     }
 
     RenderMesh(name: string, rc: RenderConfig) {
+        if (name.length == 0) {
+            for (let mesh of this._meshes) {
+                mesh["1"].Render(rc, this);
+            }
+            return;
+        }
         let mesh = this._meshes.get(name);
         if (mesh) {
             mesh.Render(rc, this);
@@ -169,7 +187,7 @@ class Scenegraph {
 
     private processTextureMap(image: HTMLImageElement, name: string, assetType: SGAssetType): void {
         let gl = this._renderingContext.gl;
-        if (image.width = 6 * image.height) {
+        if (image.width == 6 * image.height) {
             let images: Array<ImageData> = new Array<ImageData>(6);
             Utils.SeparateCubeMapImages(image, images);
             let texture = gl.createTexture();
@@ -186,7 +204,7 @@ class Scenegraph {
         } else {
             let texture = gl.createTexture();
             if (texture) {
-                gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+                gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.generateMipmap(gl.TEXTURE_2D);
                 this._textures.set(name, texture);
@@ -259,8 +277,10 @@ class Scenegraph {
                     let indices = TextParser.ParseFace(tokens);
                     for (let i = 0; i < 3; i++) {
                         try {
-                            mesh.SetNormal(normals[indices[i * 3 + 2]]);
-                            mesh.SetTexCoord(texcoords[indices[i * 3 + 1]]);
+                            if (indices[i * 3 + 2] >= 0)
+                                mesh.SetNormal(normals[indices[i * 3 + 2]]);
+                            if (indices[i * 3 + 1] >= 0)
+                                mesh.SetTexCoord(texcoords[indices[i * 3 + 1]]);
                             mesh.AddVertex(positions[indices[i * 3 + 0]]);
                             mesh.AddIndex(-1);
                         }
@@ -295,10 +315,10 @@ class Scenegraph {
                 this.Load(path + tokens[1]);
             }
             else {
-                console.log("MTLLIB: Ignoring");
-                for (let t of tokens) {
-                    console.log("\"" + t + "\"");
-                }
+                // console.log("MTLLIB: Ignoring");
+                // for (let t of tokens) {
+                //     console.log("\"" + t + "\"");
+                // }
             }
         }
     }

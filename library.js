@@ -915,7 +915,7 @@ class RenderConfig {
             gl.depthFunc(gl.LESS);
         }
     }
-    SetMatrix4(uniformName, m) {
+    SetMatrix4f(uniformName, m) {
         let gl = this._context.gl;
         let location = gl.getUniformLocation(this._program, uniformName);
         if (location) {
@@ -1015,6 +1015,7 @@ class RenderConfig {
             return false;
         }
         if (this._vertShaderCompileStatus && this._fragShaderCompileStatus) {
+            this._isCompiled = true;
             this._program = gl.createProgram();
             if (this._program) {
                 gl.attachShader(this._program, this._vertShader);
@@ -1022,6 +1023,7 @@ class RenderConfig {
                 gl.linkProgram(this._program);
                 if (gl.getProgramParameter(this._program, gl.LINK_STATUS)) {
                     this._programLinkStatus = true;
+                    this._isLinked = true;
                 }
                 else {
                     this._programLinkStatus = false;
@@ -1295,8 +1297,8 @@ var Utils;
                 else {
                     self.data = xhr.responseText;
                 }
-                callbackfn(self.data, self.name, parameter);
                 self._loaded = true;
+                callbackfn(self.data, self.name, parameter);
             });
             xhr.addEventListener("abort", (e) => {
                 self._failed = true;
@@ -1323,8 +1325,8 @@ var Utils;
             let self = this;
             let ajax = new XMLHttpRequest();
             this.image.addEventListener("load", (e) => {
-                callbackfn(self.image, this.name, parameter);
                 self._loaded = true;
+                callbackfn(self.image, this.name, parameter);
             });
             this.image.addEventListener("error", (e) => {
                 self._failed = true;
@@ -2056,27 +2058,39 @@ class Scenegraph {
             return;
         console.log("Scenegraph::Load() => Requesting " + url);
         if (assetType == SGAssetType.Image) {
+            if (this._textures.has(name))
+                return;
             this.imagefiles.push(new Utils.ImageFileLoader(url, (data, name, assetType) => {
-                console.log("Scenegraph::Load() => Loaded " + name);
                 self.processTextureMap(data, name, assetType);
-                console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+                console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
+                let log = document.getElementById("log");
+                if (log) {
+                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                }
             }));
         }
         else {
             this.textfiles.push(new Utils.TextFileLoader(url, (data, name, assetType) => {
-                console.log("Scenegraph::Load() => Loaded " + name);
                 self.processTextFile(data, name, path, assetType);
-                console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+                console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
+                let log = document.getElementById("log");
+                if (log) {
+                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                }
             }, assetType));
         }
     }
     AddRenderConfig(name, vertshaderUrl, fragshaderUrl) {
         let self = this;
         this.shaderSrcFiles.push(new Utils.ShaderLoader(vertshaderUrl, fragshaderUrl, (vertShaderSource, fragShaderSource) => {
-            console.log("Scenegraph::Load() => Loaded " + vertshaderUrl);
-            console.log("Scenegraph::Load() => Loaded " + fragshaderUrl);
             this._renderConfigs.set(name, new RenderConfig(this._renderingContext, vertShaderSource, fragShaderSource));
-            console.log("Scenegraph::Load() => done: " + self.percentLoaded + "%");
+            console.log("Scenegraph::Load() => loaded " + vertshaderUrl);
+            console.log("Scenegraph::Load() => loaded " + fragshaderUrl);
+            console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
+            let log = document.getElementById("log");
+            if (log) {
+                log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+            }
         }));
     }
     UseRenderConfig(name) {
@@ -2090,6 +2104,12 @@ class Scenegraph {
     UseMaterial(rc, mtllib, mtl) {
     }
     RenderMesh(name, rc) {
+        if (name.length == 0) {
+            for (let mesh of this._meshes) {
+                mesh["1"].Render(rc, this);
+            }
+            return;
+        }
         let mesh = this._meshes.get(name);
         if (mesh) {
             mesh.Render(rc, this);
@@ -2116,7 +2136,7 @@ class Scenegraph {
     }
     processTextureMap(image, name, assetType) {
         let gl = this._renderingContext.gl;
-        if (image.width = 6 * image.height) {
+        if (image.width == 6 * image.height) {
             let images = new Array(6);
             Utils.SeparateCubeMapImages(image, images);
             let texture = gl.createTexture();
@@ -2134,7 +2154,7 @@ class Scenegraph {
         else {
             let texture = gl.createTexture();
             if (texture) {
-                gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+                gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.generateMipmap(gl.TEXTURE_2D);
                 this._textures.set(name, texture);
@@ -2209,8 +2229,10 @@ class Scenegraph {
                     let indices = TextParser.ParseFace(tokens);
                     for (let i = 0; i < 3; i++) {
                         try {
-                            mesh.SetNormal(normals[indices[i * 3 + 2]]);
-                            mesh.SetTexCoord(texcoords[indices[i * 3 + 1]]);
+                            if (indices[i * 3 + 2] >= 0)
+                                mesh.SetNormal(normals[indices[i * 3 + 2]]);
+                            if (indices[i * 3 + 1] >= 0)
+                                mesh.SetTexCoord(texcoords[indices[i * 3 + 1]]);
                             mesh.AddVertex(positions[indices[i * 3 + 0]]);
                             mesh.AddIndex(-1);
                         }
@@ -2242,10 +2264,10 @@ class Scenegraph {
                 this.Load(path + tokens[1]);
             }
             else {
-                console.log("MTLLIB: Ignoring");
-                for (let t of tokens) {
-                    console.log("\"" + t + "\"");
-                }
+                // console.log("MTLLIB: Ignoring");
+                // for (let t of tokens) {
+                //     console.log("\"" + t + "\"");
+                // }
             }
         }
     }
@@ -2296,6 +2318,8 @@ class TextParser {
     }
     static ParseFaceIndices(token) {
         let indices = [0, 0, 0];
+        if (token.search("//"))
+            token.replace("//", "/0/");
         let tokens = token.split("/");
         if (tokens.length >= 1) {
             indices[0] = parseInt(tokens[0]) - 1;
@@ -2371,7 +2395,6 @@ class WebGLAppHW0 {
             0, 1, 0
         ]));
         this.scenegraph.AddRenderConfig("default", "shaders/rtr-homework0-shader.vert", "shaders/rtr-homework0-shader.frag");
-        this.scenegraph.Load("../assets/test_scene.scn");
     }
     mainloop(timestamp) {
         let self = this;
@@ -2393,19 +2416,19 @@ class WebGLAppHW0 {
         if (!this.renderingContext)
             return;
         let gl = this.renderingContext.gl;
-        gl.clearColor(0.2, 0.15 * Math.sin(this.t1) + 0.15, 0.4, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.clearColor(0.2, 0.2 + 0.2 * Math.sin(this.t1), 0.2, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT || gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, this.renderingContext.width, this.renderingContext.height);
         let rc = this.scenegraph.UseRenderConfig("default");
         if (rc.usable && this.vbo) {
             rc.Use();
             rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0.25, 0.5, Math.sin(this.t1)));
             rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(this.t1)));
-            rc.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
-            rc.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
-            rc.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
+            rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
+            rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -5.0));
+            rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
             this.vbo.Render(rc.GetAttribLocation("aPosition"));
-            //this.scenegraph.Render("teapot");
+            rc.Restore();
         }
         gl.useProgram(null);
     }
@@ -2414,7 +2437,6 @@ class WebGLAppHW1 {
     constructor(width = 512, height = 384) {
         this.width = width;
         this.height = height;
-        this.vbo = null;
         this.aspectRatio = 1.0;
         this.t0 = 0;
         this.t1 = 0;
@@ -2429,13 +2451,7 @@ class WebGLAppHW1 {
         this.mainloop(0);
     }
     init() {
-        let gl = this.renderingContext.gl;
-        this.vbo = new HW0StaticVertexBufferObject(gl, gl.TRIANGLES, new Float32Array([
-            -1, -1, 0,
-            1, -1, 0,
-            0, 1, 0
-        ]));
-        this.scenegraph.AddRenderConfig("default", "shaders/rtr-homework0-shader.vert", "shaders/rtr-homework0-shader.frag");
+        this.scenegraph.AddRenderConfig("default", "shaders/rtr-homework1-shader.vert", "shaders/rtr-homework1-shader.frag");
         this.scenegraph.Load("../assets/test_scene.scn");
     }
     mainloop(timestamp) {
@@ -2459,17 +2475,18 @@ class WebGLAppHW1 {
             return;
         let gl = this.renderingContext.gl;
         gl.clearColor(0.2, 0.15 * Math.sin(this.t1) + 0.15, 0.4, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.clear(gl.COLOR_BUFFER_BIT || gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, this.renderingContext.width, this.renderingContext.height);
         let rc = this.scenegraph.UseRenderConfig("default");
-        if (this.vbo) {
+        if (rc) {
             rc.Use();
             rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0.25, 0.5, Math.sin(this.t1)));
             rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(this.t1)));
-            rc.SetMatrix4("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
-            rc.SetMatrix4("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -10.0));
-            rc.SetMatrix4("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
-            this.scenegraph.RenderMesh("teapot.obj", rc);
+            rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
+            rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -5.0));
+            rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
+            // "" renders everything
+            this.scenegraph.RenderMesh("", rc);
             rc.Restore();
         }
         gl.useProgram(null);

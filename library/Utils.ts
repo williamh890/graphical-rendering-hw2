@@ -139,8 +139,8 @@ namespace Utils {
                 else {
                     self.data = xhr.responseText;
                 }
-                callbackfn(self.data, self.name, parameter);
                 self._loaded = true;
+                callbackfn(self.data, self.name, parameter);
             });
             xhr.addEventListener("abort", (e) => {
                 self._failed = true;
@@ -168,8 +168,8 @@ namespace Utils {
             let self = this;
             let ajax = new XMLHttpRequest();
             this.image.addEventListener("load", (e) => {
-                callbackfn(self.image, this.name, parameter);
                 self._loaded = true;
+                callbackfn(self.image, this.name, parameter);
             });
             this.image.addEventListener("error", (e) => {
                 self._failed = true;

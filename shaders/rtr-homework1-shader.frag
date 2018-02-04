@@ -54,5 +54,5 @@ void main() {
   PrepareForShading();
   PrepareLights();
   vec3 finalColor = Lights[0].NdotL * Lights[0].E0;
-  gl_FragColor = vec4(finalColor, 1.0);
+  gl_FragColor = vec4(0.5 * Fragment.N + 0.5, 1.0);
 }

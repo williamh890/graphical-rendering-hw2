@@ -72,7 +72,7 @@ class RenderConfig {
         }
     }
 
-    public SetMatrix4(uniformName: string, m: Matrix4): void {
+    public SetMatrix4f(uniformName: string, m: Matrix4): void {
         let gl = this._context.gl;
         let location = gl.getUniformLocation(this._program, uniformName);
         if (location) {
@@ -180,6 +180,7 @@ class RenderConfig {
         }
 
         if (this._vertShaderCompileStatus && this._fragShaderCompileStatus) {
+            this._isCompiled = true;
             this._program = gl.createProgram();
             if (this._program) {
                 gl.attachShader(this._program, this._vertShader);
@@ -187,6 +188,7 @@ class RenderConfig {
                 gl.linkProgram(this._program);
                 if (gl.getProgramParameter(this._program, gl.LINK_STATUS)) {
                     this._programLinkStatus = true;
+                    this._isLinked = true;
                 }
                 else {
                     this._programLinkStatus = false;
