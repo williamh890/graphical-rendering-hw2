@@ -198,7 +198,7 @@ namespace Utils {
                 ctx.drawImage(image, 0, 0);
 
                 for (let i = 0; i < 6; i++) {
-                    images[i] = ctx.getImageData(i * image.width, 0, image.width, image.width);
+                    images[i] = ctx.getImageData(i * image.height, 0, image.height, image.height);
                 }
             }
         }

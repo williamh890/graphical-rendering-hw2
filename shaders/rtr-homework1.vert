@@ -36,7 +36,7 @@ void main() {
     vec4 P = WorldMatrix * vec4(aPosition, 1.0);
     vPosition = P.xyz;
     vViewDir = CameraMatrix[3].xyz - P.xyz;
-    vNormal = aNormal;
+    vNormal = Top3x3(WorldMatrix) * aNormal;
     vColor = vec4(aColor, 1.0);
     vTexcoord = aTexcoord;
 

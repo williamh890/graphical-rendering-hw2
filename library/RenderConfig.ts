@@ -41,6 +41,7 @@ class RenderConfig {
 
     public useDepthTest: boolean = true;
     public depthTest: number = WebGLRenderingContext.LESS;
+    public depthMask: boolean = true;
 
     constructor(private _context: RenderingContext, private _vertShaderSource: string, private _fragShaderSource: string) {
         this.Reset(this._vertShaderSource, this._fragShaderSource);
@@ -61,6 +62,7 @@ class RenderConfig {
             gl.enable(gl.DEPTH_TEST);
             gl.depthFunc(this.depthTest);
         }
+        gl.depthMask(this.depthMask);
     }
 
     public Restore() {
@@ -70,6 +72,7 @@ class RenderConfig {
             gl.disable(gl.DEPTH_TEST);
             gl.depthFunc(gl.LESS);
         }
+        gl.depthMask(true);
     }
 
     public SetMatrix4f(uniformName: string, m: Matrix4): void {

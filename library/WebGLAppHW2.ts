@@ -1,5 +1,5 @@
 
-class WebGLAppHW1 {
+class WebGLAppHW2 {
     private renderingContext: RenderingContext;
     private scenegraph: Scenegraph;
     private aspectRatio: number = 1.0;
@@ -21,9 +21,12 @@ class WebGLAppHW1 {
 
     private init(): void {
         this.scenegraph.AddRenderConfig("default",
-            "shaders/rtr-homework1.vert",
-            "shaders/rtr-homework1.frag");
+            "shaders/rtr-homework2.vert",
+            "shaders/rtr-homework2.frag");
+        this.scenegraph.AddRenderConfig("skybox",
+            "shaders/skybox.vert", "shaders/skybox.frag");
         this.scenegraph.Load("../assets/test_scene.scn");
+        this.scenegraph.Load("../assets/skybox.scn")
     }
 
     private mainloop(timestamp: number): void {
@@ -50,20 +53,41 @@ class WebGLAppHW1 {
         gl.clearColor(0.2, 0.15 * Math.sin(this.t1) + 0.15, 0.4, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT || gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, this.renderingContext.width, this.renderingContext.height);
-        let rc = this.scenegraph.UseRenderConfig("default");
+        let rc = this.scenegraph.UseRenderConfig("skybox");
+        if (rc) {
+            rc.depthMask = false;
+            rc.useDepthTest = false;
+            rc.Use();
+            rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(90.0, this.renderingContext.aspectRatio, 0.1, 100.0));
+            rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, 0.0));
+            rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(this.t1 * 10.0, 0.0, 1.0, 0.0));
+
+            this.scenegraph.UseTexture("enviroCube", 10);
+            rc.SetUniform1i("EnviroCube", 10);
+
+            // "" renders everything
+            this.scenegraph.RenderScene("skybox", "skybox.scn");
+            this.scenegraph.UseTexture("enviroCube", 10, false);
+            rc.Restore();
+        }
+        rc = this.scenegraph.UseRenderConfig("default");
         if (rc) {
             rc.Use();
-            rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0.25, 0.5, Math.sin(this.t1)));
-            rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0).mul(Math.sin(this.t1)));
+            rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0, 1, 0));
+            rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0));
             rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
             rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -2.0));
             rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
 
-            // "" renders everything
-            this.scenegraph.RenderMesh("", rc);
+            this.scenegraph.UseTexture("enviroCube", 10);
+            rc.SetUniform1i("EnviroCube", 10);
 
+            // "" renders everything
+            this.scenegraph.RenderScene("default", "test_scene.scn");
+            this.scenegraph.UseTexture("enviroCube", 10, false);
             rc.Restore();
         }
+
         gl.useProgram(null);
     }
 }

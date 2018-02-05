@@ -28,8 +28,8 @@ class WebGLAppHW0 {
             0, 1, 0
         ]));
         this.scenegraph.AddRenderConfig("default",
-            "shaders/rtr-homework0-shader.vert",
-            "shaders/rtr-homework0-shader.frag");
+            "shaders/rtr-homework0.vert",
+            "shaders/rtr-homework0.frag");
     }
 
     private mainloop(timestamp: number): void {

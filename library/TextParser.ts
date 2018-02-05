@@ -35,6 +35,31 @@ class TextParser {
         return new Vector3(x, y, z);
     }
 
+    static ParseMatrix(tokens: string[]): Matrix4 {
+        if (tokens.length > 16 && tokens[0] == "transform") {
+            let m = new Matrix4(
+                parseFloat(tokens[1]),
+                parseFloat(tokens[2]),
+                parseFloat(tokens[3]),
+                parseFloat(tokens[4]),
+                parseFloat(tokens[5]),
+                parseFloat(tokens[6]),
+                parseFloat(tokens[7]),
+                parseFloat(tokens[8]),
+                parseFloat(tokens[9]),
+                parseFloat(tokens[10]),
+                parseFloat(tokens[11]),
+                parseFloat(tokens[12]),
+                parseFloat(tokens[13]),
+                parseFloat(tokens[14]),
+                parseFloat(tokens[15]),
+                parseFloat(tokens[16]),
+            );
+            return m;
+        }
+        return Matrix4.makeZero();
+    }
+
     static ParseFaceIndices(token: string): Array<number> {
         let indices: Array<number> = [0, 0, 0];
         if (token.search("//"))

@@ -13,7 +13,16 @@ class ScenegraphNode {
     public geometryGroup: string = "";
     public transform: Matrix4 = Matrix4.makeIdentity();
 
-    constructor(public name: string) {
+    constructor(public name: string = "unknown", public parent: string = "unknown") {
+    }
+}
+
+
+class Texture {
+    public id: string = "";
+
+    constructor(private _renderingContext: RenderingContext,
+        public name: string, public url: string, public target: number, public texture: WebGLTexture) {
     }
 }
 
@@ -24,11 +33,12 @@ class Scenegraph {
     private shaderSrcFiles: Utils.ShaderLoader[] = [];
 
     private _renderConfigs: Map<string, RenderConfig> = new Map<string, RenderConfig>();
-    private _cubeTextures: Map<string, WebGLTexture> = new Map<string, WebGLTexture>();
-    private _textures: Map<string, WebGLTexture> = new Map<string, WebGLTexture>();
+    //private _cubeTextures: Map<string, WebGLTexture> = new Map<string, WebGLTexture>();
+    private _textures: Map<string, Texture> = new Map<string, Texture>();
+    private _sceneResources: Map<string, string> = new Map<string, string>();
     private _nodes: Array<ScenegraphNode> = [];
     private _meshes: Map<string, IndexedGeometryMesh> = new Map<string, IndexedGeometryMesh>();
-    private _tempNode: ScenegraphNode = new ScenegraphNode("working");
+    private _tempNode: ScenegraphNode = new ScenegraphNode("", "");
 
     private _defaultRenderConfig: RenderConfig;
 
@@ -162,8 +172,53 @@ class Scenegraph {
         }
     }
 
-    RenderScene(shaderName: string) {
+    UseTexture(textureName: string, unit: number, enable: boolean = true) {
+        let texunit = unit | 0;
+        let gl = this._renderingContext.gl;
 
+        let t = this._textures.get(textureName);
+        if (!t) {
+            let alias = this._sceneResources.get(textureName);
+            if (alias) {
+                t = this._textures.get(alias);
+            }
+        }
+        if (t) {
+            if (unit <= 31) {
+                unit += gl.TEXTURE0;
+            }
+            gl.activeTexture(unit);
+            if (enable) {
+                gl.bindTexture(t.target, t.texture)
+            } else {
+                gl.bindTexture(t.target, null);
+            }
+        }
+        if (!t) {
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
+
+        }
+        gl.activeTexture(gl.TEXTURE0);
+    }
+
+    RenderScene(shaderName: string, sceneName: string) {
+        let rc = this.UseRenderConfig(shaderName);
+        if (!rc) {
+            console.error("Scenegraph::RenderScene(): \"" + shaderName + "\" is not a render config");
+            return;
+        }
+        for (let node of this._nodes) {
+            if (sceneName.length > 0 && node.parent != sceneName) {
+                continue;
+            }
+
+            let mesh = this._meshes.get(node.name);
+            if (mesh) {
+                mesh.Render(rc, this);
+            }
+        }
+        rc.Restore();
     }
 
     private processTextFile(data: string, name: string, path: string, assetType: SGAssetType): void {
@@ -194,12 +249,16 @@ class Scenegraph {
             if (texture) {
                 gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
                 for (let i = 0; i < 6; i++) {
-                    if (!images[i])
+                    if (!images[i]) {
                         continue;
+                    } else {
+                        console.log("image " + i + " w:" + images[i].width + "/h:" + images[i].height);
+                    }
                     gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, images[i]);
                 }
                 gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
-                this._cubeTextures.set(name, texture);
+                let t = new Texture(this._renderingContext, name, name, gl.TEXTURE_CUBE_MAP, texture);
+                this._textures.set(name, t);
             }
         } else {
             let texture = gl.createTexture();
@@ -207,7 +266,8 @@ class Scenegraph {
                 gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.generateMipmap(gl.TEXTURE_2D);
-                this._textures.set(name, texture);
+                let t = new Texture(this._renderingContext, name, name, gl.TEXTURE_2D, texture);
+                this._textures.set(name, t);
             }
         }
     }
@@ -219,8 +279,20 @@ class Scenegraph {
         // geometryGroup <objUrl: string>
 
         for (let tokens of lines) {
-            if (tokens[0] == "geometryGroup") {
+            if (tokens[0] == "enviroCube") {
+                this._sceneResources.set("enviroCube", Utils.GetURLResource(tokens[1]));
                 this.Load(path + tokens[1]);
+            }
+            else if (tokens[0] == "transform") {
+                this._tempNode.transform = TextParser.ParseMatrix(tokens);
+            }
+            else if (tokens[0] == "geometryGroup") {
+                this._tempNode.parent = name;
+                this._tempNode.name = tokens[1];
+                this._tempNode.geometryGroup = TextParser.ParseIdentifier(tokens);
+                this.Load(path + tokens[1]);
+                this._nodes.push(this._tempNode);
+                this._tempNode = new ScenegraphNode();
             }
         }
     }
