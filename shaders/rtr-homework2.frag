@@ -6,6 +6,8 @@ uniform vec3 SunDirTo;
 uniform vec3 SunE0;
 uniform samplerCube EnviroCube;
 
+uniform sampler2D map_normal;
+
 varying vec3 vPosition;
 varying vec3 vViewDir;
 varying vec3 vNormal;
@@ -34,6 +36,51 @@ FragmentInfo Fragment;
 LightInfo Lights[8];
 
 const vec3 White = vec3(1.0, 1.0, 1.0);
+
+mat3 transpose(mat3 m) {
+  return mat3(
+    m[0].x, m[1].x, m[2].x,
+    m[0].y, m[1].y, m[2].y,
+    m[0].z, m[1].z, m[2].z);
+}
+
+mat3 MakeInverseMat3(mat3 M)
+{
+	mat3 M_t = transpose(M);
+	float det = dot(cross(M_t[0], M_t[1]), M_t[2]);
+	mat3 adjugate = mat3(
+		cross(M_t[1], M_t[2]),
+		cross(M_t[2], M_t[1]),
+		cross(M_t[0], M_t[1]));
+	return adjugate / det;
+}
+
+mat3 MakeCotangentFrame(vec3 N, vec3 p, vec2 uv)
+{
+	vec3 dp1 = dFdx(p);
+	vec3 dp2 = dFdy(p);
+	vec2 duv1 = dFdx(uv);
+	vec2 duv2 = dFdy(uv);
+
+	vec3 dp2perp = cross(dp2, N);
+	vec3 dp1perp = cross(N, dp1);
+	vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+	vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+
+	float fragmentArea = length(dp1) * length(dp2);
+
+	float invmax = inversesqrt(max(dot(T,T), dot(B,B)));
+	return mat3(T * invmax, B * invmax, N);
+}
+
+vec3 PerturbNormal(vec3 N, vec3 V, vec2 texcoord)
+{
+	vec3 map = 2.0 * texture2D(map_normal, texcoord).rgb - 1.0;
+	//map.z *= BumpinessFactor;
+	//vec3 map = texture(map_normal, texcoord).rgb;
+	mat3 TBN = MakeCotangentFrame(N, -V, texcoord);
+	return normalize(TBN * map);
+}
 
 void PrepareForShading() {
   vec3 dp1 = dFdx(vPosition);

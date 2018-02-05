@@ -122,5 +122,8 @@ class IndexedGeometryMesh {
                 gl.disableVertexAttribArray(locs[i]);
             }
         }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
     }
 }

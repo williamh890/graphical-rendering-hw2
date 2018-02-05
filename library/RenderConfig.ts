@@ -78,7 +78,7 @@ class RenderConfig {
     public SetMatrix4f(uniformName: string, m: Matrix4): void {
         let gl = this._context.gl;
         let location = gl.getUniformLocation(this._program, uniformName);
-        if (location) {
+        if (location != null) {
             gl.uniformMatrix4fv(location, false, m.toColMajorArray());
         }
     }
@@ -86,7 +86,7 @@ class RenderConfig {
     public SetUniform1i(uniformName: string, x: number): void {
         let gl = this._context.gl;
         let location = gl.getUniformLocation(this._program, uniformName);
-        if (location) {
+        if (location != null) {
             gl.uniform1i(location, x);
         }
     }
@@ -94,7 +94,7 @@ class RenderConfig {
     public SetUniform3f(uniformName: string, v: Vector3): void {
         let gl = this._context.gl;
         let location = gl.getUniformLocation(this._program, uniformName);
-        if (location) {
+        if (location != null) {
             gl.uniform3fv(location, v.toFloat32Array());
         }
     }
