@@ -2429,6 +2429,11 @@ class Scenegraph {
                     }
                     this.Load(path + tokens[1]);
                 }
+                else if (tokens[0] == "PBn2") {
+                    if (curmtl) {
+                        curmtl.PBn2 = parseFloat(tokens[1]);
+                    }
+                }
             }
         }
     }

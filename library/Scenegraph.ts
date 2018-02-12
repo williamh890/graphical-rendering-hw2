@@ -446,6 +446,10 @@ class Scenegraph {
                         curmtl.map_normal_mix = 1.0;
                     }
                     this.Load(path + tokens[1]);
+                } else if (tokens[0] == "PBn2") {
+                    if (curmtl) {
+                        curmtl.PBn2 = parseFloat(tokens[1]);
+                    }
                 }
             }
         }
