@@ -38,6 +38,12 @@ class IndexedGeometryMesh {
             // do not add a surface if the most recent one is empty
             this.surfaces.push(new Surface(mode, this.indices.length, this._mtllib, this._mtl));
         }
+        if (this.surfaces.length > 0) {
+            // simply update the important details
+            let s = this.surfaces[this.surfaces.length - 1];
+            s.mtl = this._mtl;
+            s.mtllib = this._mtllib;
+        }
     }
     AddIndex(i: number): void {
         if (this.surfaces.length == 0) return;

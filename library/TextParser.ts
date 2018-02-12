@@ -6,12 +6,11 @@ class TextParser {
         let lines = data.split(/[\n\r]+/);
         for (let line of lines) {
             let unfilteredTokens = line.split(/\s+/);
+            if (unfilteredTokens.length > 0 && unfilteredTokens[0][0] == '#') continue;
             let tokens: string[] = [];
             for (let t of unfilteredTokens) {
                 if (t.length > 0) {
-                    if (t[0] != '#') {
-                        tokens.push(t);
-                    }
+                    tokens.push(t);
                 }
             }
             if (tokens.length == 0) {
@@ -20,6 +19,12 @@ class TextParser {
 
             this.lines.push(tokens);
         }
+    }
+
+    static MakeIdentifier(token: string): string {
+        if (token.length == 0)
+            return "unknown";
+        return token.replace(/[^\w]+/, "_");
     }
 
     static ParseIdentifier(tokens: string[]): string {
@@ -61,7 +66,10 @@ class TextParser {
     }
 
     static ParseFaceIndices(token: string): Array<number> {
-        let indices: Array<number> = [0, 0, 0];
+        // index 0 is position
+        // index 1 is texcoord
+        // index 2 is normal
+        let indices: Array<number> = [-1, -1, -1];
         if (token.search("//"))
             token.replace("//", "/0/");
         let tokens = token.split("/");
@@ -69,7 +77,7 @@ class TextParser {
             indices[0] = parseInt(tokens[0]) - 1;
         }
         if (tokens.length == 2) {
-            indices[2] = parseInt(tokens[2]) - 1;
+            indices[2] = parseInt(tokens[1]) - 1;
         } else if (tokens.length == 3) {
             indices[1] = parseInt(tokens[1]) - 1;
             indices[2] = parseInt(tokens[2]) - 1;

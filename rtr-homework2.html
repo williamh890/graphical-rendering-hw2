@@ -3,14 +3,14 @@
 
 <head>
     <!-- Name/Alias / Homework Title -->
-    <title>CS 481 Example Homework 2 Textures</title>
+    <title>CS 481 Example Homework 2 Materials</title>
     <link rel="stylesheet" type="text/css" href="styles.css">
 </head>
 
 <body>
     <!-- title of the homework -->
     <h1>
-        <a href="../homeworks.html">Homework 2 Textures</a>
+        <a href="../homeworks.html">Homework 2 Materials</a>
     </h1>
     <!-- Your name/alias -->
     <h2>Lastname</h2>
@@ -21,6 +21,19 @@
         let app = new WebGLAppHW2(512, 384);
         app.run();
     </script>
+    <hr/>
+    <div id="controls">
+        Reload Shaders
+        <input type="checkbox" id="checkReloadShaders" />
+        <br/>Value 1
+        <input type="range" value="0.5" min="0.0" max="1.0" step="0.01" id="value1" name="value 1" style="width:80%;" />
+        <br/>Value 2
+        <input type="range" value="0.5" min="0.0" max="1.0" step="0.01" id="value2" name="value 2" style="width:80%;" />
+        <br/>Value 3
+        <input type="range" value="0.5" min="0.0" max="1.0" step="0.01" id="value3" name="value 3" style="width:80%;" />
+        <br/>Value 4
+        <input type="range" value="0.5" min="0.0" max="1.0" step="0.01" id="value4" name="value 4" style="width:80%;" />
+    </div>
     <hr/>
     <div id="log"></div>
     <hr/>

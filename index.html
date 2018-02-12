@@ -8,7 +8,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CS 481/681 S18 Homeworks (Last name)</title>
     <link rel="stylesheet" href="styles.css">
-    <script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_CHTML">
     </script>
 </head>
 
@@ -22,8 +21,6 @@
             <hr class="goldhr" />
         </header>
 
-        <p>$$L_o = L_e + \int_{\Omega}{f_r(\omega_i, \omega_o) L_i(\omega_i) (\omega_i \cdot \omega_g) \, d\omega_i}$$</p>
-
         <center>
             <table>
                 <tr>
@@ -35,7 +32,7 @@
                     let projects = [
                         "WebGL Portfolio",
                         "Rotating Mesh",
-                        "Textures",
+                        "Materials",
                         "Scenegraph",
                         "Shadow Mapping",
                         "Ray Tracing \"Hello World\"",
@@ -57,12 +54,13 @@
                         "rtrt",
                     ];
                     let style = "style=\"vertical-align: middle; text-align: center;\"";
-                    
+
                     for (let i = 0; i < projects.length; i++) {
                         let a1 = "<a href=\"" + prefixes[i] + "-homework" + i + ".html\">"
                         document.write("<tr>");
-                        document.write("<td "+style+">" + i.toString() + "</td>");
-                        document.write("<td "+style+">" +a1 + "<img src=\"" + prefixes[i] + "-homework" + i + "-thumbnail.png\" /></a></td>");
+                        document.write("<td " + style + ">" + i.toString() + "</td>");
+                        document.write("<td " + style + ">" + a1 + "<img src=\"" + prefixes[i] + "-homework" + i +
+                            "-thumbnail.png\" /></a></td>");
                         document.write("<td>" + a1 + projects[i] + "</a></td>");
                         document.write("</tr>");
                     }

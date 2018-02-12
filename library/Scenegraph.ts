@@ -35,6 +35,7 @@ class Scenegraph {
     private _renderConfigs: Map<string, RenderConfig> = new Map<string, RenderConfig>();
     //private _cubeTextures: Map<string, WebGLTexture> = new Map<string, WebGLTexture>();
     private _textures: Map<string, Texture> = new Map<string, Texture>();
+    private _materials: Map<string, Material> = new Map<string, Material>();
     private _sceneResources: Map<string, string> = new Map<string, string>();
     private _nodes: Array<ScenegraphNode> = [];
     private _meshes: Map<string, IndexedGeometryMesh> = new Map<string, IndexedGeometryMesh>();
@@ -117,7 +118,8 @@ class Scenegraph {
                 console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
                 let log = document.getElementById("log");
                 if (log) {
-                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                    log.appendChild(document.createElement("br"));
+                    log.appendChild(document.createTextNode("Loaded " + Math.round(self.percentLoaded) + "% " + name));
                 }
             }));
         } else {
@@ -126,7 +128,8 @@ class Scenegraph {
                 console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
                 let log = document.getElementById("log");
                 if (log) {
-                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                    log.appendChild(document.createElement("br"));
+                    log.appendChild(document.createTextNode("Loaded " + Math.round(self.percentLoaded) + "% " + name));
                 }
             }, assetType));
         }
@@ -141,7 +144,8 @@ class Scenegraph {
             console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
             let log = document.getElementById("log");
             if (log) {
-                log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                log.appendChild(document.createElement("br"));
+                log.appendChild(document.createTextNode("Loaded " + Math.round(self.percentLoaded) + "% " + name));
             }
         }));
     }
@@ -156,7 +160,32 @@ class Scenegraph {
     }
 
     UseMaterial(rc: RenderConfig, mtllib: string, mtl: string) {
+        let gl = this._renderingContext.gl;
+        for (let ml of this._materials) {
+            if (ml["0"] == mtllib && ml["1"].name == mtl) {
+                let m = ml["1"];
+                let tnames = ["map_Kd", "map_normal"];
+                let textures = [m.map_Kd, m.map_normal];
+                for (let i = 0; i < textures.length; i++) {
+                    let loc = rc.GetUniformLocation(tnames[i]);
+                    if (loc && loc >= 0) {
+                        this.UseTexture(textures[i], i);
+                        rc.SetUniform1i(tnames[i], i);
+                    }
+                }
 
+                let mnames = ["map_Kd_mix", "map_normal_mix", "PBKdm", "PBKsm", "PBn2", "PBk2"];
+                let mvalues = [m.map_Kd_mix, m.map_normal_mix, m.PBKdm, m.PBKsm, m.PBn2, m.PBk2];
+                for (let i = 0; i < mnames.length; i++) {
+                    let mix_loc = rc.GetUniformLocation(mnames[i]);
+                    if (mix_loc && mix_loc >= 0) {
+                        rc.SetUniform1f(tnames[i] + "_mix", mvalues[i]);
+                    }
+                }
+
+                // TODO: Add the capability to load other Material Properties here
+            }
+        }
     }
 
     RenderMesh(name: string, rc: RenderConfig) {
@@ -176,6 +205,9 @@ class Scenegraph {
         let texunit = unit | 0;
         let gl = this._renderingContext.gl;
 
+        let minFilter = gl.LINEAR_MIPMAP_LINEAR;
+        let magFilter = gl.NEAREST;
+
         let t = this._textures.get(textureName);
         if (!t) {
             let alias = this._sceneResources.get(textureName);
@@ -190,6 +222,8 @@ class Scenegraph {
             gl.activeTexture(unit);
             if (enable) {
                 gl.bindTexture(t.target, t.texture)
+                gl.texParameteri(t.target, gl.TEXTURE_MIN_FILTER, minFilter);
+                gl.texParameteri(t.target, gl.TEXTURE_MAG_FILTER, magFilter);
             } else {
                 gl.bindTexture(t.target, null);
             }
@@ -242,6 +276,15 @@ class Scenegraph {
 
     private processTextureMap(image: HTMLImageElement, name: string, assetType: SGAssetType): void {
         let gl = this._renderingContext.gl;
+
+        let minFilter = gl.NEAREST;
+        let magFilter = gl.NEAREST;
+
+        let ext = gl.getExtension("EXT_texture_filter_anisotropic")
+        if (ext) {
+            magFilter = ext.TEXTURE_MAX_ANISOTROPY_EXT;
+        }
+
         if (image.width == 6 * image.height) {
             let images: Array<ImageData> = new Array<ImageData>(6);
             Utils.SeparateCubeMapImages(image, images);
@@ -266,6 +309,11 @@ class Scenegraph {
                 gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.generateMipmap(gl.TEXTURE_2D);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);
+                if (ext) {
+                    gl.texParameteri(gl.TEXTURE_2D, magFilter, 16);
+                }
                 let t = new Texture(this._renderingContext, name, name, gl.TEXTURE_2D, texture);
                 this._textures.set(name, t);
             }
@@ -322,22 +370,6 @@ class Scenegraph {
         // in case there are no mtllib's, usemtl's, o's, g's, or s's
         mesh.BeginSurface(gl.TRIANGLES);
         for (let tokens of lines) {
-            if (tokens.length >= 2) {
-                if (tokens[0] == "mtllib") {
-                    this.Load(path + tokens[1]);
-                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens));
-                    mesh.BeginSurface(gl.TRIANGLES);
-                } else if (tokens[1] == "usemtl") {
-                    mesh.SetMtl(TextParser.ParseIdentifier(tokens));
-                    mesh.BeginSurface(gl.TRIANGLES);
-                } else if (tokens[1] == "o") {
-                    mesh.BeginSurface(gl.TRIANGLES);
-                } else if (tokens[1] == "g") {
-                    mesh.BeginSurface(gl.TRIANGLES);
-                } else if (tokens[1] == "s") {
-                    mesh.BeginSurface(gl.TRIANGLES);
-                }
-            }
             if (tokens.length >= 4) {
                 if (tokens[0] == "v") {
                     positions.push(TextParser.ParseVector(tokens));
@@ -362,6 +394,22 @@ class Scenegraph {
                     }
                 }
             }
+            else if (tokens.length >= 2) {
+                if (tokens[0] == "mtllib") {
+                    this.Load(path + tokens[1]);
+                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
+                } else if (tokens[0] == "usemtl") {
+                    mesh.SetMtl(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
+                } else if (tokens[0] == "o") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                } else if (tokens[0] == "g") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                } else if (tokens[0] == "s") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+            }
         }
 
         mesh.BuildBuffers();
@@ -375,22 +423,30 @@ class Scenegraph {
         // map_Kd <url: string>
         // map_Ks <url: string>
         // map_normal <url: string>
-
+        let mtl = "";
+        let mtllib = TextParser.MakeIdentifier(name);
+        let curmtl: Material | undefined;
         for (let tokens of lines) {
-            if (tokens[0] == "map_Kd") {
-                this.Load(path + tokens[1]);
-            }
-            else if (tokens[0] == "map_Ks") {
-                this.Load(path + tokens[1]);
-            }
-            else if (tokens[0] == "map_normal") {
-                this.Load(path + tokens[1]);
-            }
-            else {
-                // console.log("MTLLIB: Ignoring");
-                // for (let t of tokens) {
-                //     console.log("\"" + t + "\"");
-                // }
+            if (tokens.length >= 2) {
+                if (tokens[0] == "newmtl") {
+                    mtl = TextParser.MakeIdentifier(tokens[1]);
+                    curmtl = new Material(mtl);
+                    this._materials.set(mtllib, curmtl);
+                }
+                else if (tokens[0] == "map_Kd") {
+                    if (curmtl) {
+                        curmtl.map_Kd = TextParser.MakeIdentifier(tokens[1]);
+                        curmtl.map_Kd_mix = 1.0;
+                    }
+                    this.Load(path + tokens[1]);
+                }
+                else if (tokens[0] == "map_normal") {
+                    if (curmtl) {
+                        curmtl.map_normal = TextParser.MakeIdentifier(tokens[1]);
+                        curmtl.map_normal_mix = 1.0;
+                    }
+                    this.Load(path + tokens[1]);
+                }
             }
         }
     }

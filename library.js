@@ -932,6 +932,13 @@ class RenderConfig {
             gl.uniform1i(location, x);
         }
     }
+    SetUniform1f(uniformName, x) {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location != null) {
+            gl.uniform1f(location, x);
+        }
+    }
     SetUniform3f(uniformName, v) {
         let gl = this._context.gl;
         let location = gl.getUniformLocation(this._program, uniformName);
@@ -1820,6 +1827,12 @@ class IndexedGeometryMesh {
             // do not add a surface if the most recent one is empty
             this.surfaces.push(new Surface(mode, this.indices.length, this._mtllib, this._mtl));
         }
+        if (this.surfaces.length > 0) {
+            // simply update the important details
+            let s = this.surfaces[this.surfaces.length - 1];
+            s.mtl = this._mtl;
+            s.mtllib = this._mtllib;
+        }
     }
     AddIndex(i) {
         if (this.surfaces.length == 0)
@@ -1897,6 +1910,24 @@ class IndexedGeometryMesh {
         }
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+    }
+}
+class Material {
+    constructor(name) {
+        this.name = name;
+        this.Kd = Vector3.make(0.8, 0.8, 0.8);
+        this.Ka = Vector3.make(0.2, 0.2, 0.2);
+        this.Ks = Vector3.make(1.0, 1.0, 1.0);
+        this.map_Kd_mix = 0.0;
+        this.map_Kd = "";
+        this.map_normal_mix = 0.0;
+        this.map_normal = "";
+        this.PBKsm = 0;
+        this.PBKdm = 0;
+        this.PBn2 = 1.333;
+        this.PBk2 = 0;
+        this.minFilter = 0;
+        this.magFilter = 0;
     }
 }
 class OldWebGLAppHW0 {
@@ -1998,6 +2029,7 @@ class Scenegraph {
         this._renderConfigs = new Map();
         //private _cubeTextures: Map<string, WebGLTexture> = new Map<string, WebGLTexture>();
         this._textures = new Map();
+        this._materials = new Map();
         this._sceneResources = new Map();
         this._nodes = [];
         this._meshes = new Map();
@@ -2082,7 +2114,8 @@ class Scenegraph {
                 console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
                 let log = document.getElementById("log");
                 if (log) {
-                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                    log.appendChild(document.createElement("br"));
+                    log.appendChild(document.createTextNode("Loaded " + Math.round(self.percentLoaded) + "% " + name));
                 }
             }));
         }
@@ -2092,7 +2125,8 @@ class Scenegraph {
                 console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
                 let log = document.getElementById("log");
                 if (log) {
-                    log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                    log.appendChild(document.createElement("br"));
+                    log.appendChild(document.createTextNode("Loaded " + Math.round(self.percentLoaded) + "% " + name));
                 }
             }, assetType));
         }
@@ -2106,7 +2140,8 @@ class Scenegraph {
             console.log("Scenegraph::Load() => loaded " + self.percentLoaded + "% " + name);
             let log = document.getElementById("log");
             if (log) {
-                log.innerText = "Loaded " + self.percentLoaded + "% " + name;
+                log.appendChild(document.createElement("br"));
+                log.appendChild(document.createTextNode("Loaded " + Math.round(self.percentLoaded) + "% " + name));
             }
         }));
     }
@@ -2119,6 +2154,30 @@ class Scenegraph {
         return this._defaultRenderConfig;
     }
     UseMaterial(rc, mtllib, mtl) {
+        let gl = this._renderingContext.gl;
+        for (let ml of this._materials) {
+            if (ml["0"] == mtllib && ml["1"].name == mtl) {
+                let m = ml["1"];
+                let tnames = ["map_Kd", "map_normal"];
+                let textures = [m.map_Kd, m.map_normal];
+                for (let i = 0; i < textures.length; i++) {
+                    let loc = rc.GetUniformLocation(tnames[i]);
+                    if (loc && loc >= 0) {
+                        this.UseTexture(textures[i], i);
+                        rc.SetUniform1i(tnames[i], i);
+                    }
+                }
+                let mnames = ["map_Kd_mix", "map_normal_mix", "PBKdm", "PBKsm", "PBn2", "PBk2"];
+                let mvalues = [m.map_Kd_mix, m.map_normal_mix, m.PBKdm, m.PBKsm, m.PBn2, m.PBk2];
+                for (let i = 0; i < mnames.length; i++) {
+                    let mix_loc = rc.GetUniformLocation(mnames[i]);
+                    if (mix_loc && mix_loc >= 0) {
+                        rc.SetUniform1f(tnames[i] + "_mix", mvalues[i]);
+                    }
+                }
+                // TODO: Add the capability to load other Material Properties here
+            }
+        }
     }
     RenderMesh(name, rc) {
         if (name.length == 0) {
@@ -2135,6 +2194,8 @@ class Scenegraph {
     UseTexture(textureName, unit, enable = true) {
         let texunit = unit | 0;
         let gl = this._renderingContext.gl;
+        let minFilter = gl.LINEAR_MIPMAP_LINEAR;
+        let magFilter = gl.NEAREST;
         let t = this._textures.get(textureName);
         if (!t) {
             let alias = this._sceneResources.get(textureName);
@@ -2149,6 +2210,8 @@ class Scenegraph {
             gl.activeTexture(unit);
             if (enable) {
                 gl.bindTexture(t.target, t.texture);
+                gl.texParameteri(t.target, gl.TEXTURE_MIN_FILTER, minFilter);
+                gl.texParameteri(t.target, gl.TEXTURE_MAG_FILTER, magFilter);
             }
             else {
                 gl.bindTexture(t.target, null);
@@ -2196,6 +2259,12 @@ class Scenegraph {
     }
     processTextureMap(image, name, assetType) {
         let gl = this._renderingContext.gl;
+        let minFilter = gl.NEAREST;
+        let magFilter = gl.NEAREST;
+        let ext = gl.getExtension("EXT_texture_filter_anisotropic");
+        if (ext) {
+            magFilter = ext.TEXTURE_MAX_ANISOTROPY_EXT;
+        }
         if (image.width == 6 * image.height) {
             let images = new Array(6);
             Utils.SeparateCubeMapImages(image, images);
@@ -2222,6 +2291,11 @@ class Scenegraph {
                 gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
                 gl.generateMipmap(gl.TEXTURE_2D);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);
+                if (ext) {
+                    gl.texParameteri(gl.TEXTURE_2D, magFilter, 16);
+                }
                 let t = new Texture(this._renderingContext, name, name, gl.TEXTURE_2D, texture);
                 this._textures.set(name, t);
             }
@@ -2273,26 +2347,6 @@ class Scenegraph {
         // in case there are no mtllib's, usemtl's, o's, g's, or s's
         mesh.BeginSurface(gl.TRIANGLES);
         for (let tokens of lines) {
-            if (tokens.length >= 2) {
-                if (tokens[0] == "mtllib") {
-                    this.Load(path + tokens[1]);
-                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens));
-                    mesh.BeginSurface(gl.TRIANGLES);
-                }
-                else if (tokens[1] == "usemtl") {
-                    mesh.SetMtl(TextParser.ParseIdentifier(tokens));
-                    mesh.BeginSurface(gl.TRIANGLES);
-                }
-                else if (tokens[1] == "o") {
-                    mesh.BeginSurface(gl.TRIANGLES);
-                }
-                else if (tokens[1] == "g") {
-                    mesh.BeginSurface(gl.TRIANGLES);
-                }
-                else if (tokens[1] == "s") {
-                    mesh.BeginSurface(gl.TRIANGLES);
-                }
-            }
             if (tokens.length >= 4) {
                 if (tokens[0] == "v") {
                     positions.push(TextParser.ParseVector(tokens));
@@ -2320,6 +2374,26 @@ class Scenegraph {
                     }
                 }
             }
+            else if (tokens.length >= 2) {
+                if (tokens[0] == "mtllib") {
+                    this.Load(path + tokens[1]);
+                    mesh.SetMtllib(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+                else if (tokens[0] == "usemtl") {
+                    mesh.SetMtl(TextParser.ParseIdentifier(tokens));
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+                else if (tokens[0] == "o") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+                else if (tokens[0] == "g") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+                else if (tokens[0] == "s") {
+                    mesh.BeginSurface(gl.TRIANGLES);
+                }
+            }
         }
         mesh.BuildBuffers();
         this._meshes.set(name, mesh);
@@ -2331,21 +2405,30 @@ class Scenegraph {
         // map_Kd <url: string>
         // map_Ks <url: string>
         // map_normal <url: string>
+        let mtl = "";
+        let mtllib = TextParser.MakeIdentifier(name);
+        let curmtl;
         for (let tokens of lines) {
-            if (tokens[0] == "map_Kd") {
-                this.Load(path + tokens[1]);
-            }
-            else if (tokens[0] == "map_Ks") {
-                this.Load(path + tokens[1]);
-            }
-            else if (tokens[0] == "map_normal") {
-                this.Load(path + tokens[1]);
-            }
-            else {
-                // console.log("MTLLIB: Ignoring");
-                // for (let t of tokens) {
-                //     console.log("\"" + t + "\"");
-                // }
+            if (tokens.length >= 2) {
+                if (tokens[0] == "newmtl") {
+                    mtl = TextParser.MakeIdentifier(tokens[1]);
+                    curmtl = new Material(mtl);
+                    this._materials.set(mtllib, curmtl);
+                }
+                else if (tokens[0] == "map_Kd") {
+                    if (curmtl) {
+                        curmtl.map_Kd = TextParser.MakeIdentifier(tokens[1]);
+                        curmtl.map_Kd_mix = 1.0;
+                    }
+                    this.Load(path + tokens[1]);
+                }
+                else if (tokens[0] == "map_normal") {
+                    if (curmtl) {
+                        curmtl.map_normal = TextParser.MakeIdentifier(tokens[1]);
+                        curmtl.map_normal_mix = 1.0;
+                    }
+                    this.Load(path + tokens[1]);
+                }
             }
         }
     }
@@ -2369,12 +2452,12 @@ class TextParser {
         let lines = data.split(/[\n\r]+/);
         for (let line of lines) {
             let unfilteredTokens = line.split(/\s+/);
+            if (unfilteredTokens.length > 0 && unfilteredTokens[0][0] == '#')
+                continue;
             let tokens = [];
             for (let t of unfilteredTokens) {
                 if (t.length > 0) {
-                    if (t[0] != '#') {
-                        tokens.push(t);
-                    }
+                    tokens.push(t);
                 }
             }
             if (tokens.length == 0) {
@@ -2382,6 +2465,11 @@ class TextParser {
             }
             this.lines.push(tokens);
         }
+    }
+    static MakeIdentifier(token) {
+        if (token.length == 0)
+            return "unknown";
+        return token.replace(/[^\w]+/, "_");
     }
     static ParseIdentifier(tokens) {
         if (tokens.length >= 2)
@@ -2402,7 +2490,10 @@ class TextParser {
         return Matrix4.makeZero();
     }
     static ParseFaceIndices(token) {
-        let indices = [0, 0, 0];
+        // index 0 is position
+        // index 1 is texcoord
+        // index 2 is normal
+        let indices = [-1, -1, -1];
         if (token.search("//"))
             token.replace("//", "/0/");
         let tokens = token.split("/");
@@ -2410,7 +2501,7 @@ class TextParser {
             indices[0] = parseInt(tokens[0]) - 1;
         }
         if (tokens.length == 2) {
-            indices[2] = parseInt(tokens[2]) - 1;
+            indices[2] = parseInt(tokens[1]) - 1;
         }
         else if (tokens.length == 3) {
             indices[1] = parseInt(tokens[1]) - 1;
@@ -2582,7 +2673,7 @@ class WebGLAppHW1 {
         gl.useProgram(null);
     }
 }
-class WebGLAppHW2 {
+class WebGLAppHW2_texfiltering {
     constructor(width = 512, height = 384) {
         this.width = width;
         this.height = height;
@@ -2590,6 +2681,7 @@ class WebGLAppHW2 {
         this.t0 = 0;
         this.t1 = 0;
         this.dt = 0;
+        this.sceneName = "hw2.scn";
         this.renderingContext = new RenderingContext(width, height);
         if (!this.renderingContext)
             throw "Unable to create rendering context!";
@@ -2602,7 +2694,7 @@ class WebGLAppHW2 {
     init() {
         this.scenegraph.AddRenderConfig("default", "shaders/rtr-homework2.vert", "shaders/rtr-homework2.frag");
         this.scenegraph.AddRenderConfig("skybox", "shaders/skybox.vert", "shaders/skybox.frag");
-        this.scenegraph.Load("../assets/test_scene.scn");
+        this.scenegraph.Load("../assets/" + this.sceneName);
         this.scenegraph.Load("../assets/skybox.scn");
     }
     mainloop(timestamp) {
@@ -2635,6 +2727,93 @@ class WebGLAppHW2 {
             rc.Use();
             rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(90.0, this.renderingContext.aspectRatio, 0.1, 100.0));
             rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, 0.0));
+            rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(0.0, 0.0, 1.0, 0.0));
+            this.scenegraph.UseTexture("enviroCube", 10);
+            rc.SetUniform1i("EnviroCube", 10);
+            // "" renders everything
+            this.scenegraph.RenderScene("skybox", "skybox.scn");
+            this.scenegraph.UseTexture("enviroCube", 10, false);
+            rc.Restore();
+        }
+        rc = this.scenegraph.UseRenderConfig("default");
+        if (rc) {
+            rc.Use();
+            rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0, 1, 0));
+            rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0));
+            rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 500.0));
+            rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -2.0));
+            rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(45.0, 0.0, 1.0, 0.0));
+            this.scenegraph.UseTexture("enviroCube", 10);
+            rc.SetUniform1i("EnviroCube", 10);
+            // "" renders everything
+            this.scenegraph.RenderScene("default", this.sceneName);
+            this.scenegraph.UseTexture("enviroCube", 10, false);
+            rc.Restore();
+        }
+        gl.useProgram(null);
+    }
+}
+class WebGLAppHW2 {
+    constructor(width = 512, height = 384) {
+        this.width = width;
+        this.height = height;
+        this.aspectRatio = 1.0;
+        this.t0 = 0;
+        this.t1 = 0;
+        this.dt = 0;
+        this.renderingContext = new RenderingContext(width, height);
+        if (!this.renderingContext)
+            throw "Unable to create rendering context!";
+        this.scenegraph = new Scenegraph(this.renderingContext);
+    }
+    run() {
+        this.init();
+        this.mainloop(0);
+    }
+    init() {
+        this.loadShaders();
+        this.scenegraph.Load("../assets/hw2.scn");
+        this.scenegraph.Load("../assets/skybox.scn");
+    }
+    loadShaders() {
+        this.scenegraph.AddRenderConfig("default", "shaders/rtr-homework2.vert", "shaders/rtr-homework2.frag");
+        this.scenegraph.AddRenderConfig("skybox", "shaders/skybox.vert", "shaders/skybox.frag");
+    }
+    mainloop(timestamp) {
+        let self = this;
+        this.t0 = this.t1;
+        this.t1 = timestamp / 1000.0;
+        this.dt = this.t1 - this.t0;
+        this.update();
+        this.display();
+        window.requestAnimationFrame((t) => {
+            self.mainloop(t);
+        });
+    }
+    update() {
+        // update sim/game loop code here
+        // this.t1 = elapsed time of program
+        // this.dt = elapsed time between frames
+        let el = document.getElementById("checkReloadShaders");
+        if (el && el.checked) {
+            this.loadShaders();
+            el.checked = false;
+        }
+    }
+    display() {
+        if (!this.renderingContext)
+            return;
+        let gl = this.renderingContext.gl;
+        gl.clearColor(0.2, 0.15 * Math.sin(this.t1) + 0.15, 0.4, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT || gl.DEPTH_BUFFER_BIT);
+        gl.viewport(0, 0, this.renderingContext.width, this.renderingContext.height);
+        let rc = this.scenegraph.UseRenderConfig("skybox");
+        if (rc) {
+            rc.depthMask = false;
+            rc.useDepthTest = false;
+            rc.Use();
+            rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(90.0, this.renderingContext.aspectRatio, 0.1, 100.0));
+            rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, 0.0));
             rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(this.t1 * 10.0, 0.0, 1.0, 0.0));
             this.scenegraph.UseTexture("enviroCube", 10);
             rc.SetUniform1i("EnviroCube", 10);
@@ -2649,16 +2828,28 @@ class WebGLAppHW2 {
             rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0, 1, 0));
             rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0));
             rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
-            rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, -2.0));
+            rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, Math.sin(0.25 * this.t1) * 0.25 - 2.0));
             rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
+            rc.SetUniform1f("PageValue1", this.getRangeValue(1));
             this.scenegraph.UseTexture("enviroCube", 10);
             rc.SetUniform1i("EnviroCube", 10);
             // "" renders everything
-            this.scenegraph.RenderScene("default", "test_scene.scn");
+            this.scenegraph.RenderScene("default", "hw2.scn");
             this.scenegraph.UseTexture("enviroCube", 10, false);
             rc.Restore();
         }
         gl.useProgram(null);
+    }
+    getRangeValue(index) {
+        if (index <= 0 || index > 4)
+            return 0.0;
+        let el = document.getElementById("value" + index);
+        if (el && el.value) {
+            let svalue = el.value;
+            if (svalue)
+                return parseFloat(svalue);
+        }
+        return 0.0;
     }
 }
 //# sourceMappingURL=library.js.map

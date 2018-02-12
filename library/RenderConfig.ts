@@ -91,6 +91,14 @@ class RenderConfig {
         }
     }
 
+    public SetUniform1f(uniformName: string, x: number): void {
+        let gl = this._context.gl;
+        let location = gl.getUniformLocation(this._program, uniformName);
+        if (location != null) {
+            gl.uniform1f(location, x);
+        }
+    }
+
     public SetUniform3f(uniformName: string, v: Vector3): void {
         let gl = this._context.gl;
         let location = gl.getUniformLocation(this._program, uniformName);
