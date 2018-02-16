@@ -4,6 +4,8 @@ class Material {
     public Ks: Vector3 = Vector3.make(1.0, 1.0, 1.0);
     public map_Kd_mix: number = 0.0;
     public map_Kd: string = "";
+    public map_Ks_mix: number = 0.0;
+    public map_Ks: string = "";
     public map_normal_mix: number = 0.0;
     public map_normal: string = "";
     public PBKsm: number = 0;

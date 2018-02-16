@@ -40,6 +40,7 @@ class WebGLAppHW2 {
         this.dt = this.t1 - this.t0;
         this.update();
         this.display();
+        setTimeout(function () { }, 0);
         window.requestAnimationFrame((t: number) => {
             self.mainloop(t);
         });
@@ -89,6 +90,7 @@ class WebGLAppHW2 {
             rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
 
             rc.SetUniform1f("PageValue1", this.getRangeValue(1));
+            rc.SetUniform1f("PageValue2", this.getRangeValue(2));
 
             this.scenegraph.UseTexture("enviroCube", 10);
             rc.SetUniform1i("EnviroCube", 10);

@@ -2,10 +2,10 @@
 
 enum SGAssetType {
     Scene,
-    GeometryGroup,
-    MaterialLibrary,
-    ShaderProgram,
-    Image,
+        GeometryGroup,
+        MaterialLibrary,
+        ShaderProgram,
+        Image,
 };
 
 
@@ -162,10 +162,11 @@ class Scenegraph {
     UseMaterial(rc: RenderConfig, mtllib: string, mtl: string) {
         let gl = this._renderingContext.gl;
         for (let ml of this._materials) {
+            console.log("Material: ", ml);
             if (ml["0"] == mtllib && ml["1"].name == mtl) {
                 let m = ml["1"];
-                let tnames = ["map_Kd", "map_normal"];
-                let textures = [m.map_Kd, m.map_normal];
+                let tnames = ["map_Kd", "map_normal", "map_Ks"];
+                let textures = [m.map_Kd, m.map_normal, m.map_Ks];
                 for (let i = 0; i < textures.length; i++) {
                     let loc = rc.GetUniformLocation(tnames[i]);
                     if (loc && loc >= 0) {
@@ -174,16 +175,31 @@ class Scenegraph {
                     }
                 }
 
-                let mnames = ["map_Kd_mix", "map_normal_mix", "PBKdm", "PBKsm", "PBn2", "PBk2"];
+                let mnames = ["map_Kd_mix", "map_normal_mix", "map_Ks_mix", "PBKdm", "PBKsm", "PBn2", "PBk2"];
                 let mvalues = [m.map_Kd_mix, m.map_normal_mix, m.PBKdm, m.PBKsm, m.PBn2, m.PBk2];
                 for (let i = 0; i < mnames.length; i++) {
                     let mix_loc = rc.GetUniformLocation(mnames[i]);
-                    if (mix_loc && mix_loc >= 0) {
-                        rc.SetUniform1f(tnames[i] + "_mix", mvalues[i]);
+                    if (!mix_loc || mix_loc < 0) {
+                        throw new Error(`error getting vec3 uniform: ${mix_loc}`);
                     }
+
+                    rc.SetUniform1f(tnames[i], mvalues[i]);
                 }
 
-                // TODO: Add the capability to load other Material Properties here
+                // TODO: Add these params:
+                // Ka r g b
+                // Kd r g b
+                // Ks r g b
+                const kvalues: Array<[string, Vector3]> = [["Ka", m.Ka], ["Kd", m.Kd], ["Ks", m.Ks]];
+                for (const [key, val] of kvalues)  {
+                    const loc = rc.GetUniformLocation(key);
+                    console.log("location for ", key, loc);
+                    if (!loc || loc < 0) {
+                        throw new Error(`error getting vec3 uniform: ${key}`);
+                    }
+
+                    rc.SetUniform3f(key, val);
+                }
             }
         }
     }
@@ -259,15 +275,15 @@ class Scenegraph {
         let textParser = new TextParser(data);
 
         switch (assetType) {
-            // ".SCN"
+                // ".SCN"
             case SGAssetType.Scene:
                 this.loadScene(textParser.lines, name, path);
                 break;
-            // ".OBJ"
+                // ".OBJ"
             case SGAssetType.GeometryGroup:
                 this.loadOBJ(textParser.lines, name, path);
                 break;
-            // ".MTL"
+                // ".MTL"
             case SGAssetType.MaterialLibrary:
                 this.loadMTL(textParser.lines, name, path);
                 break;
@@ -426,29 +442,120 @@ class Scenegraph {
         let mtl = "";
         let mtllib = TextParser.MakeIdentifier(name);
         let curmtl: Material | undefined;
+        console.log("LOADING MATERIAL ", name);
+
         for (let tokens of lines) {
             if (tokens.length >= 2) {
-                if (tokens[0] == "newmtl") {
-                    mtl = TextParser.MakeIdentifier(tokens[1]);
-                    curmtl = new Material(mtl);
-                    this._materials.set(mtllib, curmtl);
+                const firstToken = tokens[0];
+
+                if (!curmtl) {
+                    if (firstToken == "newmtl") {
+                        mtl = TextParser.MakeIdentifier(tokens[1]);
+                        console.log("Starting new material...", mtl)
+                        curmtl = new Material(mtl);
+                        this._materials.set(mtllib, curmtl);
+                    }
+
+                    continue;
                 }
-                else if (tokens[0] == "map_Kd") {
-                    if (curmtl) {
+
+                // Material is set
+                switch(firstToken) {
+                    case "map_Kd": {
                         curmtl.map_Kd = TextParser.MakeIdentifier(tokens[1]);
                         curmtl.map_Kd_mix = 1.0;
+                        this.Load(path + tokens[1]);
+
+                        break;
                     }
-                    this.Load(path + tokens[1]);
-                }
-                else if (tokens[0] == "map_normal") {
-                    if (curmtl) {
+
+                    case "map_Ks": {
+                        const textureFile = TextParser.MakeIdentifier(tokens[1]);
+                        curmtl.map_Ks = textureFile;
+                        curmtl.map_Ks_mix = 1.0;
+
+                        this.Load(path + tokens[1]);
+
+                        break;
+                    }
+
+                    case "map_normal": {
                         curmtl.map_normal = TextParser.MakeIdentifier(tokens[1]);
-                        curmtl.map_normal_mix = 1.0;
+                        curmtl.map_normal_mix = 2.0;
+                        this.Load(path + tokens[1]);
+
+                        break;
                     }
-                    this.Load(path + tokens[1]);
-                } else if (tokens[0] == "PBn2") {
-                    if (curmtl) {
+
+                    case "map_Kd_mix": {
+                        const amount = +tokens[1];
+                        curmtl.map_Kd_mix = amount;
+
+                        break;
+                    }
+
+                    case "map_Ks_mix": {
+                        const amount = +tokens[1];
+                        curmtl.map_Ks_mix = amount;
+
+                        break;
+                    }
+
+                    case "map_normal_mix": {
+                        const amount = +tokens[1];
+                        curmtl.map_normal_mix = amount;
+
+                        break;
+                    }
+
+                    case "PBn2": {
                         curmtl.PBn2 = parseFloat(tokens[1]);
+
+                        break;
+                    }
+                    case "Ka": {
+                        const ka = TextParser.ParseVector(tokens);
+                        curmtl.Ka = ka
+
+                        break;
+                    }
+                    case "Kd": {
+                        const kd = TextParser.ParseVector(tokens);
+                        curmtl.Kd = kd
+
+                        break;
+                    }
+                    case "Ks": {
+                        const ks = TextParser.ParseVector(tokens);
+                        curmtl.Ks = ks
+
+                        break;
+                    }
+                    case "PBKdm": {
+                        const roughness = +tokens[1];
+                        console.log("adding PBKdm: ", roughness);
+                        curmtl.PBKdm = roughness;
+
+                        break;
+                    }
+                    case "PBKsm": {
+                        const roughness = +tokens[1];
+                        console.log("adding PBKsm: ", roughness);
+                        curmtl.PBKdm = roughness;
+
+                        break;
+                    }
+                    case "PBn2": {
+                        const indexOfRefaction = +tokens[1];
+                        curmtl.PBn2 = indexOfRefaction;
+
+                        break;
+                    }
+                    case "PBk2": {
+                        const absorbtibeIndex = +tokens[1];
+                        curmtl.PBk2 = absorbtibeIndex;
+
+                        break;
                     }
                 }
             }

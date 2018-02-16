@@ -4,3 +4,5 @@
 *.mtl
 *.png
 *.jpg
+*.js
+*.js.map

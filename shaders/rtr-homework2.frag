@@ -24,6 +24,7 @@ uniform float PBn2;
 uniform float PBk2;
 
 uniform float PageValue1;
+uniform float PageValue2;
 
 varying vec3 vPosition;
 varying vec3 vViewDir;
@@ -50,6 +51,7 @@ struct LightInfo {
     float NdotL;
     float NdotH;
     float LdotD; // difference angle
+    float LdotH;
     float VdotH;
     vec3 E0;
 };
@@ -61,6 +63,7 @@ struct MaterialInfo
 	vec3 Ka;
 	float diffuseRoughness;
 	float diffuseRoughness2;
+  float disneyDiffuseRoughness;
 	float specularRoughness;
 	float specularRoughness2;
 	float specularExponent;
@@ -81,6 +84,69 @@ LightInfo Lights[8];
 float ComputeFresnelSchlick2(float F0, float cos_theta)
 {
 	return F0 + (1.0 - F0) * pow(1.0 - cos_theta, 5.0);
+}
+
+
+float ComputeDisneyDiffuse(float NdotL, float LdotD)
+{
+	// Disney Diffuse BRDF
+	// Disney BRDF uses 0.5 + 2.0 * ...
+	float FD90 = 0.5 + 2.0 * LdotD * LdotD * Material.disneyDiffuseRoughness;
+	float t = FD90 - 1.0;
+	float c1 = pow(1.0 - NdotL, 5.0);
+	float c2 = pow(1.0 - Fragment.NdotV, 5.0);
+	return (1.0 + t * c1) * (1.0 + t * c2) / 3.14159;
+}
+
+
+float ComputeOrenNayer2(vec3 L, float NdotL)
+{
+	// According to Disney BRDF, some models use double Fresnel in this way
+	// float cos_theta_d = dot(Lights[i].L, Lights[i].H);
+	// float Fl = ComputeFresnelSchlick2(Material.F0, Lights[i].NdotL);
+	// float Fd = ComputeFresnelSchlick2(Material.F0, cos_theta_d);
+	// Oren-Nayer BRDF
+
+	// (vec3 N, vec3 L, vec3 V, float m
+	float theta_NL = acos(NdotL);
+	float theta_NV = acos(Fragment.NdotV);
+
+	float alpha = max(theta_NV, theta_NL);
+	float beta = min(theta_NV, theta_NL);
+
+	float gamma = max(dot(Fragment.V - Fragment.N * Fragment.NdotV, L - Fragment.N * Fragment.NdotV), 0.0);
+	float m2 = Material.diffuseRoughness * Material.diffuseRoughness;
+
+	float A = 1.0 - 0.5 * m2 / (m2 + 0.57);
+	float B = 0.45 * m2 / (m2 + 0.09);
+	float C = sin(alpha) * tan(beta);
+	float L1 = (A + B * gamma * C) / 3.14159;
+	return L1;
+}
+
+
+float G1_GGX(float c, float aSquared)
+{
+	return 2.0 / (1.0 + sqrt(1.0 + aSquared * (1.0 - c*c) / (c*c)));
+}
+
+
+float G2_GGX(float NdotL)
+{
+	float t = Material.specularRoughness * 0.5 + 0.5;
+	float alphaSquared = t*t;
+	return G1_GGX(NdotL, alphaSquared) * G1_GGX(Fragment.NdotV, alphaSquared);
+}
+
+
+float D_GTR(float NdotH)
+{
+		// GGX Generalized-Trowbridge-Reitz
+		float alpha = Material.specularRoughness2;
+		float c2 = NdotH * NdotH;
+		float t2 = (1.0 - c2) / c2;
+		float D = (1.0 / 3.14159) * pow(alpha / (c2 * (alpha*alpha + t2)), Material.specularGGXgamma);
+    return D;
 }
 
 
@@ -149,19 +215,25 @@ void PrepareForShading() {
 void PrepareMaterial() {
   float n2 = 1.333;
   float t = (1.0 - n2) / (1.0 + n2);
-  float m = PageValue1 * PageValue1;//0.15;
+  float m = PageValue1;//0.15;
   Material.Kd = Kd;
   Material.Ks = Ks;
   Material.specularExponent = max(0.0, 2.0 / (m * m) - 2.0);
   Material.F0 = t*t;
+  Material.diffuseRoughness = abs(PageValue2);
+  Material.diffuseRoughness2 = PageValue2 * PageValue2;
+  Material.disneyDiffuseRoughness = abs(PageValue2);
+  Material.specularRoughness = abs(m);
+  Material.specularRoughness2 = m*m;
+  Material.specularGGXgamma = 2.0;
 }
 
 
 void PrepareLights() {
     Lights[0].enabled = 1.0;
     Lights[0].L = SunDirTo;
-    Lights[0].E0 = 30.0 * SunE0;
-    Lights[1].enabled = 1.0;
+    Lights[0].E0 = SunE0;
+    Lights[1].enabled = 0.0;
     Lights[1].L = Fragment.N;
     Lights[1].E0 = textureCube(EnviroCube, Fragment.N).rgb;
     Lights[2].enabled = 1.0;
@@ -176,6 +248,7 @@ void PrepareLights() {
       Lights[i].NdotL = max(0.0, dot(Fragment.N, Lights[i].L));
       Lights[i].NdotH = max(0.0, dot(Fragment.N, Lights[i].H));
       Lights[i].LdotD = max(0.0, dot(Lights[i].L, Lights[i].D));
+      Lights[i].LdotH = max(0.0, dot(Lights[i].L, Lights[i].H));
       Lights[i].VdotH = max(0.0, dot(Fragment.V, Lights[i].H));
     }
 }
@@ -204,7 +277,7 @@ float MaskingShadowingG2(float NdotL, float NdotV, float NdotH, float VdotH)
 	return min(1.0, min(G1, G2));
 }
 
-float BlinnPhongD(float e, float NdotH)
+float D_BlinnPhong(float e, float NdotH)
 {
 		float C = (2.0 + e) / (2.0 * 3.14159);
 		float D = C * pow(NdotH, e);
@@ -221,29 +294,23 @@ void main() {
   vec3 c_d = texture2D(map_Kd, vTexcoord.st).rgb;
   vec3 c_normal = texture2D(map_normal, vTexcoord.st).rgb;
 
-  vec3 finalColor = Black;//enviroColor;
+  vec3 finalColor = Black;
+  // Set the maximum number of lights to 1
+  // other sources of light (e.g. from direction N and R are in PrepareLights() function)
   for (int i = 0; i < 8; i++) {
     if (Lights[i].enabled == 0.0)
       continue;
-    vec3 diffuseColor = Lights[i].E0 * Material.Kd * Lights[i].NdotL / 3.14159;
 
-    //float D = BlinnPhongD(Material.specularExponent, Fragment.NdotV);
-    float D = BlinnPhongD(Material.specularExponent, Lights[i].NdotH);
-    float F = ComputeFresnelSchlick2(Material.F0, Lights[i].LdotD);
-    float G = MaskingShadowingG2(Lights[i].NdotL, Fragment.NdotV, Lights[i].NdotH, Lights[i].VdotH);
-    float denom = 4.0 * Lights[i].NdotL * Fragment.NdotV;
-
+    // TODO: Change specular model here (at least Blinn-Phong BRDF)
     vec3 specularColor = Black;
-    if (denom >= 0.00001) {
-      float f_r = (D * F * G) / denom;
-      specularColor += f_r * Material.Ks * Lights[i].E0 * Lights[i].NdotL;
-    }
-    
+    vec3 diffuseColor = Lights[i].E0 * Material.Kd * Lights[i].NdotL / 3.14159;
 
     finalColor += diffuseColor + specularColor;
   }
 
-    //vec3(Fragment.R.x, -Fragment.R.z, Fragment.R.y)).rgb;
-  float toneMapScale = 0.25;
-  gl_FragColor = vec4(toneMapScale * finalColor, 1.0);
+  float toneMapScale = 0.0;
+  float gamma = 1.0;
+  vec3 c_exposure = 2.5 * pow(2.0, toneMapScale) * finalColor;
+  vec3 c_gamma = pow(c_exposure, vec3(1.0 / gamma));
+  gl_FragColor = vec4(c_gamma, 1.0);
 }

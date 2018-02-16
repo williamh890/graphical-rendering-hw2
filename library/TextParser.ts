@@ -65,13 +65,12 @@ class TextParser {
         return Matrix4.makeZero();
     }
 
-    static ParseFaceIndices(token: string): Array<number> {
+    static ParseFaceIndices(_token: string): Array<number> {
         // index 0 is position
         // index 1 is texcoord
         // index 2 is normal
         let indices: Array<number> = [-1, -1, -1];
-        if (token.search("//"))
-            token.replace("//", "/0/");
+        let token = _token.replace("//", "/0/");
         let tokens = token.split("/");
         if (tokens.length >= 1) {
             indices[0] = parseInt(tokens[0]) - 1;
