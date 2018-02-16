@@ -63,7 +63,7 @@ struct MaterialInfo
 	vec3 Ka;
 	float diffuseRoughness;
 	float diffuseRoughness2;
-  float disneyDiffuseRoughness;
+    float disneyDiffuseRoughness;
 	float specularRoughness;
 	float specularRoughness2;
 	float specularExponent;
@@ -279,8 +279,8 @@ float MaskingShadowingG2(float NdotL, float NdotV, float NdotH, float VdotH)
 
 float D_BlinnPhong(float e, float NdotH)
 {
-		float C = (2.0 + e) / (2.0 * 3.14159);
-		float D = C * pow(NdotH, e);
+    float C = (2.0 + e) / (2.0 * 3.14159);
+    float D = C * pow(NdotH, e);
     return D;
 }
 
@@ -302,7 +302,13 @@ void main() {
       continue;
 
     // TODO: Change specular model here (at least Blinn-Phong BRDF)
-    vec3 specularColor = Black;
+    float ndoth = Lights[i].NdotH;
+    float specularHardness = 200.;
+    float intensity = pow(clamp(ndoth, 0., 1.), specularHardness);
+    float dist = length(Lights[i].E0);
+    dist = dist * dist;
+    vec3 specularColor = (intensity * Material.Ks * Shininess) / dist ;
+
     vec3 diffuseColor = Lights[i].E0 * Material.Kd * Lights[i].NdotL / 3.14159;
 
     finalColor += diffuseColor + specularColor;

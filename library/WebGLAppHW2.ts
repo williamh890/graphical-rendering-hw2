@@ -83,14 +83,18 @@ class WebGLAppHW2 {
         rc = this.scenegraph.UseRenderConfig("default");
         if (rc) {
             rc.Use();
-            rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0, 1, 0));
+            rc.SetUniform3f("SunDirTo", Vector3.makeUnit(0.34816, 0.87039, 0.34816));
             rc.SetUniform3f("SunE0", Vector3.make(1.0, 1.0, 1.0));
             rc.SetMatrix4f("ProjectionMatrix", Matrix4.makePerspectiveX(45.0, this.renderingContext.aspectRatio, 0.1, 100.0));
             rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, Math.sin(0.25 * this.t1) * 0.25 - 2.0));
             rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
 
-            rc.SetUniform1f("PageValue1", this.getRangeValue(1));
+            const pv1 = this.getRangeValue(1);
+            rc.SetUniform1f("PageValue1", pv1);
             rc.SetUniform1f("PageValue2", this.getRangeValue(2));
+            const pv3 = (this.getRangeValue(3) + 1) / 2;
+            console.log(pv3)
+            rc.SetUniform1f("Shininess", pv3);
 
             this.scenegraph.UseTexture("enviroCube", 10);
             rc.SetUniform1i("EnviroCube", 10);

@@ -161,8 +161,9 @@ class Scenegraph {
 
     UseMaterial(rc: RenderConfig, mtllib: string, mtl: string) {
         let gl = this._renderingContext.gl;
+
         for (let ml of this._materials) {
-            console.log("Material: ", ml);
+            //console.log("Material: ", ml);
             if (ml["0"] == mtllib && ml["1"].name == mtl) {
                 let m = ml["1"];
                 let tnames = ["map_Kd", "map_normal", "map_Ks"];
@@ -176,11 +177,12 @@ class Scenegraph {
                 }
 
                 let mnames = ["map_Kd_mix", "map_normal_mix", "map_Ks_mix", "PBKdm", "PBKsm", "PBn2", "PBk2"];
-                let mvalues = [m.map_Kd_mix, m.map_normal_mix, m.PBKdm, m.PBKsm, m.PBn2, m.PBk2];
+                let mvalues = [m.map_Kd_mix, m.map_normal_mix, m.map_Ks_mix, m.PBKdm, m.PBKsm, m.PBn2, m.PBk2];
                 for (let i = 0; i < mnames.length; i++) {
                     let mix_loc = rc.GetUniformLocation(mnames[i]);
                     if (!mix_loc || mix_loc < 0) {
-                        throw new Error(`error getting vec3 uniform: ${mix_loc}`);
+                        // console.log(`error getting vec3 uniform: ${mnames[i]}`);
+                        continue;
                     }
 
                     rc.SetUniform1f(tnames[i], mvalues[i]);
@@ -193,9 +195,9 @@ class Scenegraph {
                 const kvalues: Array<[string, Vector3]> = [["Ka", m.Ka], ["Kd", m.Kd], ["Ks", m.Ks]];
                 for (const [key, val] of kvalues)  {
                     const loc = rc.GetUniformLocation(key);
-                    console.log("location for ", key, loc);
                     if (!loc || loc < 0) {
-                        throw new Error(`error getting vec3 uniform: ${key}`);
+                        // console.log(`error getting vec3 uniform: ${key}`);
+                        continue;
                     }
 
                     rc.SetUniform3f(key, val);
@@ -560,5 +562,6 @@ class Scenegraph {
                 }
             }
         }
+        console.log("FINISHED MATERIAL", curmtl);
     }
 }
