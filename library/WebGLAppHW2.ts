@@ -89,13 +89,13 @@ class WebGLAppHW2 {
             rc.SetMatrix4f("CameraMatrix", Matrix4.makeTranslation(0.0, 0.0, Math.sin(0.25 * this.t1) * 0.25 - 2.0));
             rc.SetMatrix4f("WorldMatrix", Matrix4.makeRotation(10 * this.t1, 0.0, 1.0, 0.0));
 
-            const pv1 = this.getRangeValue(1);
+            const pv1 = this.getRangeValue(3);
             rc.SetUniform1f("PageValue1", pv1);
-            rc.SetUniform1f("PageValue2", this.getRangeValue(2));
+            rc.SetUniform1f("PageValue2", this.getRangeValue(4));
 
-            const pv3 = (this.getRangeValue(3) + 1) / 2;
+            const pv3 = (this.getRangeValue(1) + 1) / 2;
             rc.SetUniform1f("ShininessAmount", pv3);
-            const pv4 = (this.getRangeValue(4) + 1) / 2;
+            const pv4 = (this.getRangeValue(2) + 1) / 2;
             console.log(pv4)
             rc.SetUniform1f("SpecularHardnessAmount", pv4);
 
