@@ -92,9 +92,13 @@ class WebGLAppHW2 {
             const pv1 = this.getRangeValue(1);
             rc.SetUniform1f("PageValue1", pv1);
             rc.SetUniform1f("PageValue2", this.getRangeValue(2));
+
             const pv3 = (this.getRangeValue(3) + 1) / 2;
-            console.log(pv3)
-            rc.SetUniform1f("Shininess", pv3);
+            rc.SetUniform1f("ShininessAmount", pv3);
+            const pv4 = (this.getRangeValue(4) + 1) / 2;
+            console.log(pv4)
+            rc.SetUniform1f("SpecularHardnessAmount", pv4);
+
 
             this.scenegraph.UseTexture("enviroCube", 10);
             rc.SetUniform1i("EnviroCube", 10);

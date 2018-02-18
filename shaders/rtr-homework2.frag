@@ -13,7 +13,8 @@ uniform samplerCube EnviroCube;
 vec3 Kd = Clay;
 vec3 Ks = White;
 float Roughness = 1.0;
-uniform float Shininess;
+uniform float ShininessAmount;
+uniform float SpecularHardnessAmount;
 uniform sampler2D map_Kd;
 uniform sampler2D map_normal;
 uniform float map_Kd_mix;
@@ -303,11 +304,11 @@ void main() {
 
     // TODO: Change specular model here (at least Blinn-Phong BRDF)
     float ndoth = Lights[i].NdotH;
-    float specularHardness = 200.;
+    float specularHardness = 1000. * SpecularHardnessAmount;
     float intensity = pow(clamp(ndoth, 0., 1.), specularHardness);
     float dist = length(Lights[i].E0);
     dist = dist * dist;
-    vec3 specularColor = (intensity * Material.Ks * Shininess) / dist ;
+    vec3 specularColor = (intensity * Material.Ks * ShininessAmount) / dist ;
 
     vec3 diffuseColor = Lights[i].E0 * Material.Kd * Lights[i].NdotL / 3.14159;
 
